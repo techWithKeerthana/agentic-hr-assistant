@@ -3,7 +3,6 @@ from backend.graph.state import AgentState
 from backend.graph.nodes.router import router_node
 from backend.graph.nodes.rag import rag_node
 from backend.graph.nodes.booking import booking_node
-from backend.graph.nodes.summarizer import summarizer_node
 from backend.graph.checkpointer import get_checkpointer
 
 

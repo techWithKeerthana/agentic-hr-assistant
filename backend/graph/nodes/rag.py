@@ -32,6 +32,18 @@ def get_llm():
 
 
 def rag_node(state: AgentState) -> AgentState:
+    # Injection detected upstream — return safe refusal without touching LLM
+    if state.get("injection_detected"):
+        return {
+            **state,
+            "current_node": "rag",
+            "retrieved_chunks": [],
+            "rag_confidence": 0.0,
+            "citations": [],
+            "streaming_events": [{"type": "node_change", "node": "rag", "description": "Security violation blocked"}],
+            "messages": [{"role": "assistant", "content": "I'm unable to process that request. If you have a genuine HR question, please rephrase it."}],
+        }
+
     messages = state.get("messages", [])
     last_message = messages[-1].get("content", "") if messages else ""
 
