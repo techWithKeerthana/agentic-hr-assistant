@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Plus, MessageSquare, Trash2, Edit2, Check, X } from 'lucide-react'
 
-export default function ThreadSidebar({ threads, activeThreadId, onNew, onSelect, onDelete }) {
+const API_BASE = import.meta.env.VITE_API_URL || ''
+
+export default function ThreadSidebar({ threads, activeThreadId, onNew, onSelect, onDelete, onRename }) {
   const [editingId, setEditingId] = useState(null)
   const [editValue, setEditValue] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
@@ -12,7 +14,17 @@ export default function ThreadSidebar({ threads, activeThreadId, onNew, onSelect
   }
 
   const saveEdit = async (id) => {
-    // Title edits are local-only for now (could persist via API)
+    const title = editValue.trim()
+    if (title) {
+      try {
+        await fetch(`${API_BASE}/api/threads/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title }),
+        })
+        if (onRename) onRename()
+      } catch { /* ignore */ }
+    }
     setEditingId(null)
   }
 

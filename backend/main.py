@@ -151,13 +151,16 @@ async def stream_graph_response(message: str, thread_id: str):
 
                 final_state = output
 
-        # Update thread title from first user message
+        # Upsert thread — create with title on first message, update timestamp on all messages
         if thread_id:
             existing_threads = list_threads()
-            thread_exists = any(t["id"] == thread_id for t in existing_threads)
-            if not thread_exists:
-                title = sanitized[:50] + ("..." if len(sanitized) > 50 else "")
+            existing = next((t for t in existing_threads if t["id"] == thread_id), None)
+            if not existing:
+                title = sanitized[:40] + ("..." if len(sanitized) > 40 else "")
                 upsert_thread(thread_id, title)
+            else:
+                # Touch updated_at so sidebar stays sorted by recent activity
+                upsert_thread(thread_id, existing["title"])
 
         ref_id = None
         if final_state:
@@ -207,6 +210,56 @@ async def delete_thread_endpoint(thread_id: str):
 async def get_thread_booking_endpoint(thread_id: str):
     booking = get_booking_by_thread(thread_id)
     return {"booking": booking}
+
+
+@app.get("/api/threads/{thread_id}/messages")
+async def get_thread_messages(thread_id: str):
+    """Return the message history for a thread from the LangGraph checkpointer."""
+    from graph.checkpointer import get_checkpointer
+    checkpointer = get_checkpointer()
+    if not checkpointer:
+        return {"messages": [], "booking_status": None}
+    config = {"configurable": {"thread_id": thread_id}}
+    try:
+        checkpoint_tuple = await checkpointer.aget_tuple(config)
+        if not checkpoint_tuple:
+            return {"messages": [], "booking_status": None}
+        state = checkpoint_tuple.checkpoint.get("channel_values", {})
+        messages = state.get("messages", [])
+        filtered = [m for m in messages if isinstance(m, dict) and m.get("role") in ("user", "assistant")]
+        return {
+            "messages": filtered,
+            "booking_status": state.get("booking_status"),
+            "name": state.get("name"),
+            "email": state.get("email"),
+        }
+    except Exception as e:
+        logger.error(f"Thread messages error: {e}")
+        return {"messages": [], "booking_status": None}
+
+
+class ThreadPatchRequest(BaseModel):
+    title: str
+
+
+@app.patch("/api/threads/{thread_id}")
+async def patch_thread(thread_id: str, body: ThreadPatchRequest):
+    """Rename a thread."""
+    upsert_thread(thread_id, body.title[:60])
+    return {"success": True}
+
+
+@app.post("/api/docs/query")
+async def query_doc_chunks(body: dict):
+    """Alias for /api/docs/preview used by DocPanel."""
+    query = body.get("query", "")
+    from rag.ingestor import get_vectorstore
+    from rag.retriever import preview_chunks
+    vs = get_vectorstore()
+    if not vs:
+        return {"chunks": []}
+    chunks = preview_chunks(query, vs)
+    return {"chunks": chunks}
 
 
 @app.get("/api/docs")

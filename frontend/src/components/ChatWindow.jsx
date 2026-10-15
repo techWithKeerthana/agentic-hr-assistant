@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Bot, User } from 'lucide-react'
 import AgentTimeline from './AgentTimeline'
 import CitationBadge from './CitationBadge'
 import BookingCard from './BookingCard'
+
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 function TypingIndicator() {
   return (
@@ -14,7 +16,7 @@ function TypingIndicator() {
   )
 }
 
-function MessageBubble({ message, onSlotSelect, onCancel }) {
+function MessageBubble({ message, onSlotSelect, onCancel, onConfirm }) {
   const isUser = message.role === 'user'
   return (
     <div className={`flex gap-3 mb-4 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -32,9 +34,9 @@ function MessageBubble({ message, onSlotSelect, onCancel }) {
           {message.content}
         </div>
 
-        {!isUser && message.citations && (
+        {!isUser && (message.citations?.length > 0 || message.abstained) && (
           <CitationBadge
-            citations={message.citations}
+            citations={message.citations || []}
             confidence={message.confidence}
             abstained={message.abstained}
           />
@@ -45,6 +47,7 @@ function MessageBubble({ message, onSlotSelect, onCancel }) {
             bookingData={message.bookingCard}
             onSlotSelect={onSlotSelect}
             onCancel={onCancel}
+            onConfirm={onConfirm}
           />
         )}
       </div>
@@ -53,15 +56,44 @@ function MessageBubble({ message, onSlotSelect, onCancel }) {
 }
 
 export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
-  const { sendMessage, isStreaming, tokens, nodeEvents, citations, bookingCard, error, doneData } = ssState
+  const {
+    sendMessage, isStreaming, tokens, nodeEvents, citations,
+    bookingCard, bookingConfirmed, error, doneData, reset
+  } = ssState
+
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState([])
   const [streamingContent, setStreamingContent] = useState('')
   const [currentNodeEvents, setCurrentNodeEvents] = useState([])
   const [currentCitations, setCurrentCitations] = useState([])
   const [currentBookingCard, setCurrentBookingCard] = useState(null)
+  const [loadingHistory, setLoadingHistory] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const prevThreadRef = useRef(null)
+
+  // Load thread message history when threadId changes
+  useEffect(() => {
+    if (!threadId || threadId === prevThreadRef.current) return
+    prevThreadRef.current = threadId
+    setMessages([])
+    reset()
+    setStreamingContent('')
+    setCurrentNodeEvents([])
+    setCurrentCitations([])
+    setCurrentBookingCard(null)
+
+    setLoadingHistory(true)
+    fetch(`${API_BASE}/api/threads/${threadId}/messages`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.messages?.length > 0) {
+          setMessages(data.messages.map(m => ({ role: m.role, content: m.content })))
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingHistory(false))
+  }, [threadId, reset])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -84,37 +116,41 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
   }, [bookingCard])
 
   useEffect(() => {
-    if (doneData && streamingContent) {
-      // Finalize the streaming message
+    if (!doneData) return
+    // Build the final booking card: prefer bookingConfirmed (confirmed state) over current card
+    const finalCard = bookingConfirmed
+      ? { status: 'confirmed', ref_id: bookingConfirmed.ref_id, slot_label: bookingConfirmed.slot_label }
+      : currentBookingCard
+
+    const content = streamingContent || ''
+    if (content || finalCard) {
       setMessages(prev => [
         ...prev,
         {
           role: 'assistant',
-          content: streamingContent,
+          content,
           citations: currentCitations,
-          bookingCard: currentBookingCard,
-          abstained: streamingContent.includes("doesn't contain enough information"),
+          bookingCard: finalCard,
+          abstained: content.includes("doesn't contain enough information"),
         },
       ])
-      setStreamingContent('')
-      setCurrentCitations([])
-      setCurrentBookingCard(null)
-      setCurrentNodeEvents([])
     }
+    setStreamingContent('')
+    setCurrentCitations([])
+    setCurrentBookingCard(null)
+    setCurrentNodeEvents([])
+    if (onThreadUpdated) onThreadUpdated()
   }, [doneData])
 
   const handleSend = async () => {
     const text = input.trim()
     if (!text || isStreaming) return
-
     setInput('')
     setStreamingContent('')
     setCurrentNodeEvents([])
     setCurrentCitations([])
     setCurrentBookingCard(null)
-
     setMessages(prev => [...prev, { role: 'user', content: text }])
-
     const tid = threadId || `t-${Date.now()}`
     await sendMessage(text, tid)
   }
@@ -133,6 +169,12 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
     await sendMessage(msg, threadId)
   }
 
+  const handleConfirmBooking = async () => {
+    setInput('')
+    setMessages(prev => [...prev, { role: 'user', content: 'Yes, confirm' }])
+    await sendMessage('Yes, confirm', threadId)
+  }
+
   const handleCancelBooking = async () => {
     setMessages(prev => [...prev, { role: 'user', content: 'cancel' }])
     await sendMessage('cancel', threadId)
@@ -148,22 +190,29 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
         </div>
         {threadId && (
           <span className="text-xs text-gray-600 font-mono">
-            {threadId.slice(0, 20)}...
+            {threadId.slice(0, 24)}...
           </span>
         )}
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
-        {messages.length === 0 && !isStreaming && (
+        {messages.length === 0 && !isStreaming && !loadingHistory && (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
             <div className="w-16 h-16 rounded-full bg-indigo-900/30 border border-indigo-800 flex items-center justify-center">
               <Bot size={32} className="text-indigo-400" />
             </div>
             <div>
               <p className="text-gray-300 font-semibold mb-1">Ask about HR policies or book an appointment</p>
-              <p className="text-gray-500 text-sm">Try: "How many vacation days do I get?" or "Book a performance review"</p>
+              <p className="text-gray-500 text-sm">Try: "How often are performance reviews conducted?" or "Book a meeting"</p>
             </div>
+          </div>
+        )}
+
+        {loadingHistory && (
+          <div className="flex items-center justify-center py-8 text-gray-500 text-sm gap-2">
+            <span className="w-2 h-2 bg-gray-500 rounded-full typing-dot" />
+            <span>Loading conversation...</span>
           </div>
         )}
 
@@ -173,11 +222,12 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
             message={msg}
             onSlotSelect={handleSlotSelect}
             onCancel={handleCancelBooking}
+            onConfirm={handleConfirmBooking}
           />
         ))}
 
         {/* Live agent timeline during streaming */}
-        {isStreaming && (
+        {isStreaming && currentNodeEvents.length > 0 && (
           <AgentTimeline nodeEvents={currentNodeEvents} isStreaming={isStreaming} />
         )}
 

@@ -42,6 +42,7 @@ export default function App() {
         onNew={handleNewThread}
         onSelect={handleSelectThread}
         onDelete={deleteThread}
+        onRename={refreshThreads}
       />
 
       {/* Main content */}

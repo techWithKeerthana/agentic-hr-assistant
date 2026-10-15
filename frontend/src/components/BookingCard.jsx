@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Calendar, CheckCircle2, X, RotateCcw, Clock } from 'lucide-react'
 
-export default function BookingCard({ bookingData, onSlotSelect, onCancel }) {
+export default function BookingCard({ bookingData, onSlotSelect, onCancel, onConfirm }) {
   const [selectedSlot, setSelectedSlot] = useState(bookingData?.selected_slot || null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -9,10 +9,16 @@ export default function BookingCard({ bookingData, onSlotSelect, onCancel }) {
 
   const { slots = [], status, name, email, slot_label, ref_id } = bookingData
 
-  const handleConfirm = async () => {
+  const handleSelectAndConfirm = async () => {
     if (!selectedSlot) return
     setSubmitting(true)
     await onSlotSelect(selectedSlot)
+    setSubmitting(false)
+  }
+
+  const handleFinalConfirm = async () => {
+    setSubmitting(true)
+    if (onConfirm) await onConfirm()
     setSubmitting(false)
   }
 
@@ -93,9 +99,37 @@ export default function BookingCard({ bookingData, onSlotSelect, onCancel }) {
       )}
 
       <div className="flex gap-2">
-        {status !== 'pending_confirmation' ? (
+        {status === 'pending_confirmation' ? (
+          <>
+            <button
+              onClick={handleFinalConfirm}
+              disabled={submitting}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+            >
+              {submitting ? (
+                <span className="flex gap-1">
+                  <span className="w-1.5 h-1.5 bg-white rounded-full typing-dot" />
+                  <span className="w-1.5 h-1.5 bg-white rounded-full typing-dot" />
+                  <span className="w-1.5 h-1.5 bg-white rounded-full typing-dot" />
+                </span>
+              ) : (
+                <>
+                  <CheckCircle2 size={15} />
+                  Yes, Confirm Booking
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => onSlotSelect('__reschedule__')}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm transition-colors"
+            >
+              <RotateCcw size={14} />
+              Reschedule
+            </button>
+          </>
+        ) : (
           <button
-            onClick={handleConfirm}
+            onClick={handleSelectAndConfirm}
             disabled={!selectedSlot || submitting}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
           >
@@ -111,14 +145,6 @@ export default function BookingCard({ bookingData, onSlotSelect, onCancel }) {
                 Confirm Booking
               </>
             )}
-          </button>
-        ) : (
-          <button
-            onClick={() => onSlotSelect('__reschedule__')}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm transition-colors"
-          >
-            <RotateCcw size={14} />
-            Reschedule
           </button>
         )}
         <button

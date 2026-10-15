@@ -35,14 +35,14 @@ flowchart TD
 
 | Layer | Technology |
 |-------|-----------|
-| Agent Framework | LangGraph (StateGraph, SqliteSaver checkpointer) |
-| Backend | Python 3.10+ · FastAPI (async) · SSE streaming |
-| LLM | Groq API — LLaMA 3.3-70b (free & fast) |
+| Agent Framework | LangGraph 1.2 (StateGraph, AsyncSqliteSaver checkpointer) |
+| Backend | Python 3.11 · FastAPI (async) · SSE streaming |
+| LLM | Groq API — qwen/qwen3-32b (free & fast; configurable) |
 | Vector Store | ChromaDB (local, persisted) |
 | Embeddings | sentence-transformers all-MiniLM-L6-v2 (free) |
-| Retrieval | EnsembleRetriever: BM25 + vector similarity |
+| Retrieval | Hybrid: BM25 (rank-bm25) + ChromaDB vector search |
 | Frontend | React 18 · Vite · Tailwind CSS |
-| Database | SQLite (bookings table + LangGraph checkpointer) |
+| Database | SQLite (bookings table + LangGraph AsyncSqliteSaver) |
 
 ## Local Setup
 
@@ -69,8 +69,9 @@ pip install -r backend/requirements.txt
 cp .env.example .env
 # Edit .env and add your GROQ_API_KEY
 
-# Run backend
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+# Run backend (set BACKEND_PORT=8080 in .env if 8000 is blocked)
+cd backend
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 The backend will:
@@ -103,9 +104,13 @@ docker-compose up --build
 | `GET` | `/api/slots` | Available appointment slots |
 | `GET` | `/api/threads` | List conversation threads |
 | `DELETE` | `/api/threads/{id}` | Delete a thread |
+| `PATCH` | `/api/threads/{id}` | Rename a thread |
+| `GET` | `/api/threads/{id}/messages` | Message history from checkpointer |
+| `GET` | `/api/threads/{id}/booking` | Active booking for a thread |
 | `GET` | `/api/docs` | List indexed documents |
 | `POST` | `/api/docs/upload` | Upload and index a new PDF |
 | `POST` | `/api/docs/preview` | Preview retrieval for a query |
+| `POST` | `/api/docs/query` | Alias for /api/docs/preview |
 | `POST` | `/api/eval/run` | Run the evaluation suite |
 | `GET` | `/api/health` | Health check |
 
@@ -152,21 +157,36 @@ Test categories: Security · Input Validation · Database · Intent Routing
 
 ### Where LLMs Hallucinated and How I Fixed It
 
-1. **LangGraph streaming API**: Claude initially suggested `graph.stream()` for SSE output, but this is synchronous and blocks the async event loop. Fixed by using `graph.astream_events()` with `async for` and translating `on_chain_end` events into SSE.
+1. **LangGraph streaming API**: Claude initially suggested `graph.stream()` for SSE output, but this is synchronous and blocks the async event loop. Fixed by using `graph.astream_events(version="v2")` with `async for`, translating `on_chain_end` events (with `metadata["langgraph_node"]`) into SSE tokens.
 
-2. **Checkpointer**: Copilot defaulted to `MemorySaver` which loses state on backend restart. Replaced with `SqliteSaver` and verified persistence by restarting the server mid-booking.
+2. **AsyncSqliteSaver initialization**: LLM generated `AsyncSqliteSaver.from_conn_string(path)` which doesn't exist in LangGraph 1.2. Correct API is `await aiosqlite.connect(path)` then `AsyncSqliteSaver(conn)`.
 
-3. **ChromaDB collection**: LLM generated `client.get_collection()` which throws `InvalidCollectionException` if the collection doesn't exist on first run. Fixed to `get_or_create_collection()`.
+3. **ChromaDB confidence scores**: Claude assumed relevance scores are 0–1, but ChromaDB L2 distance conversion yields 0–0.6 for typical documents. Set `RAG_CONFIDENCE_THRESHOLD=0.3` instead of default 0.7 to avoid over-abstention.
 
-4. **BM25 + vector ensemble**: Initial suggestion used `VectorStoreRetriever` directly in the ensemble without `search_type="similarity_score_threshold"`. Added the threshold to avoid returning zero-score results as high-confidence.
+4. **Duplicate token emission**: `on_chain_end` fires 2–3 times per node in LangGraph 1.x. Fixed by tracking `emitted_end_nodes: set` and skipping duplicate end events per node.
 
-5. **Booking state reset**: First iteration of the router reset `booking_status` to `None` on every context switch. Fixed by preserving all booking fields and only overriding `intent` and `pending_action`.
+5. **Booking state reset**: First router iteration reset `booking_status` to `None` on context switch. Fixed by using `**state` spread so router only overrides `intent` / `current_node` / `streaming_events`, preserving all booking fields.
+
+6. **Groq model availability**: LLaMA 3.3-70b-versatile was not available on this Groq account. Fell back to `qwen/qwen3-32b` which is available and performant.
+
+7. **BM25 + vector ensemble**: Initial suggestion passed `VectorStoreRetriever` without score normalization. Added manual BM25/vector score merge with deduplication by document ID to avoid double-counting chunks.
 
 ## Verification Artifacts
 
-Screenshots to add after first run:
-- `docs/screenshot-chat-rag.png` — RAG answer with citation badge
-- `docs/screenshot-booking-flow.png` — slot selection → confirmation card
-- `docs/screenshot-context-switch.png` — FAQ mid-booking state preserved
-- `docs/screenshot-agent-timeline.png` — live execution timeline
-- `docs/screenshot-eval-dashboard.png` — eval suite results
+Screenshots (see `screenshots/` directory):
+- `screenshots/chat-rag.png` — RAG answer with citation badge and evidence snippets
+- `screenshots/booking-flow.png` — slot selection cards → pending confirmation → confirmed
+- `screenshots/context-switch.png` — FAQ mid-booking, state preserved across turns
+- `screenshots/agent-timeline.png` — live Agent Control Room showing Router → RAG steps
+- `screenshots/eval-dashboard.png` — Eval Lab UI showing 11/11 tests passing
+- `screenshots/thread-sidebar.png` — persistent conversation threads with rename
+
+### Verified Behaviors
+
+| Behavior | Evidence |
+|----------|----------|
+| SqliteSaver restart persistence | Killed uvicorn, restarted, `GET /api/threads/persist-test-01/messages` returned 9 messages |
+| Eval suite 100% | `python tests/eval_runner.py` → `Pass rate: 100.0% (11/11 tests)` |
+| Context switching | Mid-booking FAQ returns answer then "Returning to your appointment booking..." |
+| Citation abstention | Low-confidence queries return "Handbook doesn't contain enough information" |
+| Double-booking prevention | `is_slot_available()` checked before `create_booking()` write |
