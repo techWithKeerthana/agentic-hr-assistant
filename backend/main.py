@@ -102,7 +102,14 @@ async def stream_graph_response(message: str, thread_id: str):
             if kind == "on_chain_start" and lg_node in ("router", "rag", "booking"):
                 if lg_node not in emitted_start_nodes:
                     emitted_start_nodes.add(lg_node)
-                    yield sse_event("node_change", {"node": lg_node, "description": f"Running {lg_node}..."})
+                    labels = {"router": "Router Agent", "rag": "RAG Retrieval", "booking": "Booking Agent"}
+                    descs = {"router": "Classifying intent...", "rag": "Searching handbook...", "booking": "Processing booking..."}
+                    yield sse_event("node_change", {
+                        "node": lg_node,
+                        "display_name": labels.get(lg_node, lg_node),
+                        "description": descs.get(lg_node, ""),
+                        "status": "running",
+                    })
 
             elif kind == "on_chain_end" and lg_node in ("router", "rag", "booking"):
                 # Only process the first on_chain_end per node to avoid duplicate emissions
@@ -148,6 +155,9 @@ async def stream_graph_response(message: str, thread_id: str):
                         token = word + (" " if i < len(words) - 1 else "")
                         yield sse_event("token", {"token": token})
                         await asyncio.sleep(0.01)
+
+                # Mark this node completed in the timeline
+                yield sse_event("node_change", {"node": lg_node, "status": "completed"})
 
                 final_state = output
 

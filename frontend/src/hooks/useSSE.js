@@ -88,14 +88,25 @@ export function useSSE() {
 
   const handleEvent = (eventType, data, onToken) => {
     switch (eventType) {
-      case 'node_change':
-        setNodeEvents(prev => [...prev, {
+      case 'node_change': {
+        const entry = {
           node: data.node,
-          description: data.description,
-          status: 'completed',
+          display_name: data.display_name || data.node,
+          description: data.description || '',
+          status: data.status || 'completed',
           timestamp: Date.now(),
-        }])
+        }
+        setNodeEvents(prev => {
+          const idx = prev.findIndex(e => e.node === data.node)
+          if (idx >= 0) {
+            const updated = [...prev]
+            updated[idx] = { ...updated[idx], ...entry }
+            return updated
+          }
+          return [...prev, entry]
+        })
         break
+      }
       case 'token':
         setTokens(prev => prev + (data.token || ''))
         if (onToken) onToken(data.token || '')

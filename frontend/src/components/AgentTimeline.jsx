@@ -33,8 +33,7 @@ export default function AgentTimeline({ nodeEvents, isStreaming }) {
       {!collapsed && (
         <div className="px-4 pb-3 space-y-2">
           {nodeEvents.map((ev, i) => {
-            const isLast = i === nodeEvents.length - 1
-            const isRunning = isLast && isStreaming
+            const isRunning = ev.status === 'running'
             return (
               <div key={i} className="flex items-start gap-3">
                 <div className="mt-0.5 shrink-0">
@@ -47,7 +46,7 @@ export default function AgentTimeline({ nodeEvents, isStreaming }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-semibold ${NODE_COLORS[ev.node] || 'text-gray-300'}`}>
-                      {NODE_LABELS[ev.node] || ev.node}
+                      {ev.display_name || NODE_LABELS[ev.node] || ev.node}
                     </span>
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
                       isRunning

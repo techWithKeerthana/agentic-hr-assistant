@@ -150,7 +150,12 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
     setCurrentNodeEvents([])
     setCurrentCitations([])
     setCurrentBookingCard(null)
-    setMessages(prev => [...prev, { role: 'user', content: text }])
+    const now = Date.now()
+    setMessages(prev => {
+      const recentDup = prev.some(m => m.role === 'user' && m.content === text && now - (m._ts || 0) < 2000)
+      if (recentDup) return prev
+      return [...prev, { role: 'user', content: text, _ts: now }]
+    })
     const tid = threadId || `t-${Date.now()}`
     await sendMessage(text, tid)
   }
@@ -165,18 +170,25 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
   const handleSlotSelect = async (slotId) => {
     const msg = slotId === '__reschedule__' ? 'I want to reschedule' : `I select slot ${slotId}`
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: msg }])
+    setCurrentNodeEvents([])
+    setCurrentCitations([])
+    setCurrentBookingCard(null)
+    setMessages(prev => [...prev, { role: 'user', content: msg, _ts: Date.now() }])
     await sendMessage(msg, threadId)
   }
 
   const handleConfirmBooking = async () => {
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: 'Yes, confirm' }])
+    setCurrentNodeEvents([])
+    setCurrentCitations([])
+    setCurrentBookingCard(null)
+    setMessages(prev => [...prev, { role: 'user', content: 'Yes, confirm', _ts: Date.now() }])
     await sendMessage('Yes, confirm', threadId)
   }
 
   const handleCancelBooking = async () => {
-    setMessages(prev => [...prev, { role: 'user', content: 'cancel' }])
+    setCurrentNodeEvents([])
+    setMessages(prev => [...prev, { role: 'user', content: 'cancel', _ts: Date.now() }])
     await sendMessage('cancel', threadId)
   }
 
@@ -226,8 +238,8 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
           />
         ))}
 
-        {/* Live agent timeline during streaming */}
-        {isStreaming && currentNodeEvents.length > 0 && (
+        {/* Live agent timeline — show while streaming or until next message clears it */}
+        {currentNodeEvents.length > 0 && (
           <AgentTimeline nodeEvents={currentNodeEvents} isStreaming={isStreaming} />
         )}
 

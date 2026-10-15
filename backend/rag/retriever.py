@@ -22,8 +22,10 @@ def build_bm25(docs: list[Document]):
 def retrieve(query: str, vectorstore) -> dict:
     """Hybrid BM25 + vector retrieval with confidence scoring."""
     try:
-        # Vector search with scores
-        scored = vectorstore.similarity_search_with_relevance_scores(query, k=TOP_K)
+        # similarity_search_with_score returns raw L2 distance (lower = more similar).
+        # Convert: similarity = max(0, 1 - distance/2) so scores stay in [0, 1].
+        raw = vectorstore.similarity_search_with_score(query, k=TOP_K)
+        scored = [(doc, max(0.0, 1.0 - dist / 2.0)) for doc, dist in raw]
 
         # BM25 results
         bm25_docs: list[Document] = []
