@@ -1,0 +1,85 @@
+import { useState } from 'react'
+import { MessageSquare, BarChart3, FileText } from 'lucide-react'
+import ThreadSidebar from './components/ThreadSidebar'
+import ChatWindow from './components/ChatWindow'
+import EvalDashboard from './components/EvalDashboard'
+import DocPanel from './components/DocPanel'
+import { useSSE } from './hooks/useSSE'
+import { useThread } from './hooks/useThread'
+
+const TABS = [
+  { id: 'chat', label: 'Chat', icon: MessageSquare },
+  { id: 'eval', label: 'Eval Lab', icon: BarChart3 },
+  { id: 'docs', label: 'Documents', icon: FileText },
+]
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('chat')
+  const ssState = useSSE()
+  const {
+    threads, activeThreadId, createThread, selectThread, deleteThread, refreshThreads
+  } = useThread()
+
+  const handleNewThread = () => {
+    const id = createThread()
+    ssState.reset()
+    setActiveTab('chat')
+    return id
+  }
+
+  const handleSelectThread = (id) => {
+    selectThread(id)
+    ssState.reset()
+    setActiveTab('chat')
+  }
+
+  return (
+    <div className="flex h-screen bg-gray-950 text-gray-100 overflow-hidden">
+      {/* Left sidebar */}
+      <ThreadSidebar
+        threads={threads}
+        activeThreadId={activeThreadId}
+        onNew={handleNewThread}
+        onSelect={handleSelectThread}
+        onDelete={deleteThread}
+      />
+
+      {/* Main content */}
+      <div className="flex flex-col flex-1 min-w-0">
+        {/* Tab bar */}
+        <div className="flex items-center gap-1 px-4 pt-3 pb-0 border-b border-gray-800 bg-gray-950">
+          {TABS.map(tab => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg transition-colors border-b-2 ${
+                  activeTab === tab.id
+                    ? 'text-indigo-400 border-indigo-500 bg-gray-900/50'
+                    : 'text-gray-500 border-transparent hover:text-gray-300'
+                }`}
+              >
+                <Icon size={15} />
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Tab content */}
+        <div className="flex-1 overflow-hidden">
+          {activeTab === 'chat' && (
+            <ChatWindow
+              threadId={activeThreadId}
+              ssState={ssState}
+              onThreadUpdated={refreshThreads}
+            />
+          )}
+          {activeTab === 'eval' && <EvalDashboard />}
+          {activeTab === 'docs' && <DocPanel />}
+        </div>
+      </div>
+    </div>
+  )
+}
