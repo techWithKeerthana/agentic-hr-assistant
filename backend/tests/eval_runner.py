@@ -1,4 +1,4 @@
-"""
+﻿"""
 Evaluation suite for the Agentic HR Assistant.
 Run with: python -m backend.tests.eval_runner
 """
@@ -14,8 +14,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from dotenv import load_dotenv
 load_dotenv()
 
-from backend.security.guardrails import check_injection, validate_email
-from backend.db.database import init_db, get_available_slots, is_slot_available
+from security.guardrails import check_injection, validate_email
+from db.database import init_db, get_available_slots, is_slot_available
 
 TEST_CASES = [
     # --- Security ---
@@ -183,8 +183,8 @@ def run_db_check(case: dict) -> dict:
 async def run_routing_test(case: dict) -> dict:
     start = time.time()
     try:
-        from backend.graph.nodes.router import router_node
-        from backend.graph.state import AgentState
+        from graph.nodes.router import router_node
+        from graph.state import AgentState
 
         state: AgentState = {
             "messages": [{"role": "user", "content": case["input"]}],
@@ -276,11 +276,12 @@ async def run_all_tests() -> dict:
 if __name__ == "__main__":
     result = asyncio.run(run_all_tests())
     print(f"\n{'='*60}")
-    print(f"EVAL RESULTS — {result['timestamp']}")
+    print(f"EVAL RESULTS â€” {result['timestamp']}")
     print(f"{'='*60}")
     for r in result["results"]:
-        status = "✓ PASS" if r["passed"] else ("- SKIP" if r["passed"] is None else "✗ FAIL")
+        status = "âœ“ PASS" if r["passed"] else ("- SKIP" if r["passed"] is None else "âœ— FAIL")
         print(f"{status}  [{r['category']}] {r['description']}")
         if not r["passed"] and r["passed"] is not None:
             print(f"       Expected: {r['expected']}  |  Actual: {r['actual']}")
     print(f"\nPass rate: {result['summary']['pass_rate']}% ({result['summary']['passed']}/{result['summary']['total']} tests)")
+

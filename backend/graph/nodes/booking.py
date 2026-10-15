@@ -1,22 +1,22 @@
-import os
+﻿import os
 import re
 import random
 import logging
 from langchain_groq import ChatGroq
-from langchain.schema import HumanMessage, SystemMessage
-from backend.graph.state import AgentState
-from backend.db.database import (
+from langchain_core.messages import HumanMessage, SystemMessage
+from graph.state import AgentState
+from db.database import (
     get_available_slots, is_slot_available, create_booking,
     get_booking_by_thread, cancel_booking
 )
-from backend.security.guardrails import validate_email
+from security.guardrails import validate_email
 
 logger = logging.getLogger(__name__)
 
 
 def get_llm():
     return ChatGroq(
-        model="llama-3.3-70b-versatile",
+        model="qwen/qwen3.8-27b",
         temperature=0,
         api_key=os.getenv("GROQ_API_KEY"),
     )
@@ -108,7 +108,7 @@ def booking_node(state: AgentState) -> AgentState:
                 "messages": [{"role": "assistant", "content": answer}],
             }
 
-        # Got both — fetch slots
+        # Got both â€” fetch slots
         slots = get_available_slots()
         if not slots:
             answer = "Sorry, there are no available slots at this time. Please check back later."
@@ -270,7 +270,7 @@ def booking_node(state: AgentState) -> AgentState:
 
         events.append({"type": "booking_confirmed", "ref_id": ref_id, "slot_label": slot_label})
         answer = (
-            f"Your appointment is confirmed! 🎉\n\n"
+            f"Your appointment is confirmed! ðŸŽ‰\n\n"
             f"**Booking Reference**: `{ref_id}`\n"
             f"**Slot**: {slot_label}\n"
             f"**Name**: {state.get('name')}\n\n"
@@ -306,3 +306,6 @@ def booking_node(state: AgentState) -> AgentState:
         }
 
     return {**state, "current_node": "booking", "streaming_events": events}
+
+
+

@@ -3,8 +3,8 @@ import logging
 import httpx
 from pathlib import Path
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 
 logger = logging.getLogger(__name__)
@@ -68,6 +68,7 @@ def load_and_chunk(pdf_path: Path, doc_name: str) -> list:
 
 async def ingest_all_pdfs() -> Chroma:
     global _vectorstore
+    from rag.retriever import build_bm25
     embeddings = get_embeddings()
 
     # Load existing vectorstore if available
@@ -78,6 +79,17 @@ async def ingest_all_pdfs() -> Chroma:
             embedding_function=embeddings,
             collection_name="hr_docs",
         )
+        # Build BM25 from stored docs for hybrid retrieval
+        try:
+            all_meta = _vectorstore._collection.get(include=["documents", "metadatas"])
+            docs_from_store = []
+            from langchain_core.documents import Document as LCDoc
+            for text, meta in zip(all_meta["documents"], all_meta["metadatas"]):
+                docs_from_store.append(LCDoc(page_content=text, metadata=meta or {}))
+            build_bm25(docs_from_store)
+            logger.info(f"BM25 built from {len(docs_from_store)} stored chunks")
+        except Exception as e:
+            logger.warning(f"BM25 build from store failed: {e}")
         return _vectorstore
 
     all_chunks = []
@@ -93,7 +105,6 @@ async def ingest_all_pdfs() -> Chroma:
             logger.error(f"Failed to ingest {doc_name}: {e}")
 
     if not all_chunks:
-        # Create empty store so app doesn't crash
         all_chunks = []
 
     _vectorstore = Chroma.from_documents(
@@ -102,6 +113,7 @@ async def ingest_all_pdfs() -> Chroma:
         persist_directory=CHROMA_DIR,
         collection_name="hr_docs",
     )
+    build_bm25(all_chunks)
     logger.info(f"ChromaDB vectorstore built with {len(all_chunks)} chunks")
     return _vectorstore
 
@@ -128,6 +140,10 @@ async def ingest_additional_pdf(pdf_path: Path, doc_name: str) -> dict:
         "page_count": len(set(c.metadata.get("page_number", 1) for c in chunks)),
         "status": "indexed",
     }
+
+
+# Alias expected by test runner
+ingest_pdfs = ingest_all_pdfs
 
 
 def get_doc_stats() -> list[dict]:

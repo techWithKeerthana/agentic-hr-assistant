@@ -1,11 +1,11 @@
-import os
+﻿import os
 import logging
 from langchain_groq import ChatGroq
-from langchain.schema import HumanMessage, SystemMessage
-from backend.graph.state import AgentState
-from backend.rag.retriever import retrieve
-from backend.rag.evaluator import extract_citations, compute_citation_confidence
-from backend.rag import ingestor
+from langchain_core.messages import HumanMessage, SystemMessage
+from graph.state import AgentState
+from rag.retriever import retrieve
+from rag.evaluator import extract_citations, compute_citation_confidence
+from rag import ingestor
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ Retrieved context:
 
 def get_llm():
     return ChatGroq(
-        model="llama-3.3-70b-versatile",
+        model="qwen/qwen3.8-27b",
         temperature=0,
         api_key=os.getenv("GROQ_API_KEY"),
         streaming=True,
@@ -32,7 +32,7 @@ def get_llm():
 
 
 def rag_node(state: AgentState) -> AgentState:
-    # Injection detected upstream — return safe refusal without touching LLM
+    # Injection detected upstream â€” return safe refusal without touching LLM
     if state.get("injection_detected"):
         return {
             **state,
@@ -95,7 +95,7 @@ def rag_node(state: AgentState) -> AgentState:
     pending = state.get("pending_action")
     booking_status = state.get("booking_status")
     if pending == "resume_booking" or booking_status in ("collecting_info", "slot_selection", "pending_confirmation"):
-        answer += "\n\n---\n*Returning to your appointment booking — where we left off...*"
+        answer += "\n\n---\n*Returning to your appointment booking â€” where we left off...*"
         events.append({"type": "node_change", "node": "rag", "description": "Resuming booking flow"})
 
     return {
@@ -107,3 +107,6 @@ def rag_node(state: AgentState) -> AgentState:
         "streaming_events": events,
         "messages": [{"role": "assistant", "content": answer}],
     }
+
+
+

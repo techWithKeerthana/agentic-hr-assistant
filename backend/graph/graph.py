@@ -1,9 +1,9 @@
-from langgraph.graph import StateGraph, END
-from backend.graph.state import AgentState
-from backend.graph.nodes.router import router_node
-from backend.graph.nodes.rag import rag_node
-from backend.graph.nodes.booking import booking_node
-from backend.graph.checkpointer import get_checkpointer
+﻿from langgraph.graph import StateGraph, END
+from graph.state import AgentState
+from graph.nodes.router import router_node
+from graph.nodes.rag import rag_node
+from graph.nodes.booking import booking_node
+from graph.checkpointer import get_checkpointer
 
 
 def route_intent(state: AgentState) -> str:
@@ -18,7 +18,7 @@ def route_intent(state: AgentState) -> str:
     return "rag"  # default to FAQ for unknown
 
 
-def build_graph():
+def build_graph(checkpointer=None):
     workflow = StateGraph(AgentState)
 
     workflow.add_node("router", router_node)
@@ -39,15 +39,18 @@ def build_graph():
     workflow.add_edge("rag", END)
     workflow.add_edge("booking", END)
 
-    checkpointer = get_checkpointer()
-    return workflow.compile(checkpointer=checkpointer)
+    cp = checkpointer or get_checkpointer()
+    return workflow.compile(checkpointer=cp)
 
 
 _graph = None
 
 
 def get_graph():
-    global _graph
-    if _graph is None:
-        _graph = build_graph()
     return _graph
+
+
+def set_graph(g):
+    global _graph
+    _graph = g
+

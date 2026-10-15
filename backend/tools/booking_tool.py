@@ -1,5 +1,5 @@
-from backend.db.database import create_booking, cancel_booking, get_booking_by_thread
-from backend.security.guardrails import validate_booking_input
+﻿from db.database import create_booking, cancel_booking, get_booking_by_thread
+from security.guardrails import validate_booking_input
 
 
 def book_appointment(name: str, email: str, slot_id: str, slot_label: str,
@@ -24,3 +24,4 @@ def cancel_appointment(ref_id: str) -> dict:
 
 def get_thread_booking(thread_id: str) -> dict | None:
     return get_booking_by_thread(thread_id)
+

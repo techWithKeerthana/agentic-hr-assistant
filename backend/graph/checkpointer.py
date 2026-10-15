@@ -1,12 +1,21 @@
 import os
-import sqlite3
+import aiosqlite
 from pathlib import Path
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 DB_PATH = os.getenv("SQLITE_DB_PATH", "./data/agent_state.db")
 
+_checkpointer = None
 
-def get_checkpointer() -> SqliteSaver:
+
+async def init_checkpointer() -> AsyncSqliteSaver:
+    """Initialize the async SQLite checkpointer. Call once at app startup."""
+    global _checkpointer
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    return SqliteSaver(conn)
+    conn = await aiosqlite.connect(DB_PATH, check_same_thread=False)
+    _checkpointer = AsyncSqliteSaver(conn)
+    return _checkpointer
+
+
+def get_checkpointer() -> AsyncSqliteSaver | None:
+    return _checkpointer

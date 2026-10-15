@@ -8,6 +8,8 @@ export function useSSE() {
   const [nodeEvents, setNodeEvents] = useState([])
   const [citations, setCitations] = useState([])
   const [bookingCard, setBookingCard] = useState(null)
+  const [bookingConfirmed, setBookingConfirmed] = useState(null)
+  const [retrievalStatus, setRetrievalStatus] = useState(null)
   const [isDone, setIsDone] = useState(false)
   const [error, setError] = useState(null)
   const [doneData, setDoneData] = useState(null)
@@ -18,6 +20,8 @@ export function useSSE() {
     setNodeEvents([])
     setCitations([])
     setBookingCard(null)
+    setBookingConfirmed(null)
+    setRetrievalStatus(null)
     setIsDone(false)
     setError(null)
     setDoneData(null)
@@ -102,6 +106,12 @@ export function useSSE() {
       case 'booking_card':
         setBookingCard(data)
         break
+      case 'booking_confirmed':
+        setBookingConfirmed(data)
+        break
+      case 'retrieval_status':
+        setRetrievalStatus(data)
+        break
       case 'done':
         setDoneData(data)
         setIsDone(true)
@@ -127,6 +137,8 @@ export function useSSE() {
     nodeEvents,
     citations,
     bookingCard,
+    bookingConfirmed,
+    retrievalStatus,
     isDone,
     error,
     doneData,

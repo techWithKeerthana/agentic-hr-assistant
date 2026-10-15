@@ -55,14 +55,19 @@ def _seed_slots(cur: sqlite3.Cursor, conn: sqlite3.Connection):
         return
     base = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0) + timedelta(days=1)
     slots = []
-    for day_offset in range(5):
+    days_added = 0
+    day_offset = 0
+    while days_added < 5:
         day = base + timedelta(days=day_offset)
+        day_offset += 1
         if day.weekday() >= 5:  # skip weekends
-            day += timedelta(days=2)
+            continue
+        days_added += 1
         for hour_offset in [0, 2, 4]:
             slot_time = day + timedelta(hours=hour_offset)
             slot_id = f"s{len(slots)+1}"
-            label = slot_time.strftime("%A, %b %d · %I:%M %p")
+            # Use ASCII hyphen instead of middle dot to avoid encoding issues
+            label = slot_time.strftime("%A, %b %d - %I:%M %p")
             slots.append((slot_id, label, 1, slot_time.isoformat()))
     cur.executemany(
         "INSERT OR IGNORE INTO slots (id, label, available, datetime_iso) VALUES (?, ?, ?, ?)",

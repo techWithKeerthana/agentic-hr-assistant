@@ -1,16 +1,16 @@
-import os
+﻿import os
 import logging
 from langchain_groq import ChatGroq
-from langchain.schema import HumanMessage, SystemMessage
-from backend.graph.state import AgentState
-from backend.security.guardrails import check_injection, sanitize_input
+from langchain_core.messages import HumanMessage, SystemMessage
+from graph.state import AgentState
+from security.guardrails import check_injection, sanitize_input
 
 logger = logging.getLogger(__name__)
 
 
 def get_llm():
     return ChatGroq(
-        model="llama-3.3-70b-versatile",
+        model="qwen/qwen3.8-27b",
         temperature=0,
         api_key=os.getenv("GROQ_API_KEY"),
     )
@@ -73,3 +73,6 @@ def router_node(state: AgentState) -> AgentState:
         "injection_detected": False,
         "streaming_events": events,
     }
+
+
+

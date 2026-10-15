@@ -52,7 +52,7 @@ function MessageBubble({ message, onSlotSelect, onCancel }) {
   )
 }
 
-export default function ChatWindow({ threadId, onSendMessage, ssState }) {
+export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
   const { sendMessage, isStreaming, tokens, nodeEvents, citations, bookingCard, error, doneData } = ssState
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState([])

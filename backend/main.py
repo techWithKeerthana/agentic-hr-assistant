@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 import uuid
 import asyncio
@@ -17,19 +17,25 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from backend.db.database import (
+from db.database import (
     init_db, get_available_slots, list_threads, delete_thread,
     upsert_thread, get_booking_by_thread
 )
-from backend.graph.graph import get_graph
-from backend.rag.ingestor import ingest_all_pdfs, ingest_additional_pdf, get_doc_stats
-from backend.security.guardrails import check_injection, sanitize_input
+from graph.graph import get_graph, build_graph, set_graph
+from graph.checkpointer import init_checkpointer
+from rag.ingestor import ingest_all_pdfs, ingest_additional_pdf, get_doc_stats
+from security.guardrails import check_injection, sanitize_input
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     logger.info("Database initialized")
+    # Initialize async checkpointer and build the graph
+    checkpointer = await init_checkpointer()
+    graph = build_graph(checkpointer)
+    set_graph(graph)
+    logger.info("LangGraph initialized with AsyncSqliteSaver")
     # Ingest PDFs in background
     asyncio.create_task(ingest_all_pdfs())
     yield
@@ -59,6 +65,10 @@ def sse_event(event_type: str, data: dict) -> str:
 async def stream_graph_response(message: str, thread_id: str):
     """Stream LangGraph events as SSE."""
     graph = get_graph()
+    if graph is None:
+        yield sse_event("error", {"message": "System is initializing. Please try again in a moment."})
+        yield sse_event("done", {"thread_id": thread_id, "ref_id": None})
+        return
 
     # Security check first
     sanitized = sanitize_input(message)
@@ -79,48 +89,67 @@ async def stream_graph_response(message: str, thread_id: str):
         yield sse_event("node_change", {"node": "router", "description": "Processing your message..."})
 
         final_state = None
-        async for event in graph.astream_events(input_state, config, version="v1"):
+        emitted_start_nodes: set = set()
+        emitted_end_nodes: set = set()
+
+        async for event in graph.astream_events(input_state, config, version="v2"):
             kind = event.get("event", "")
+            metadata = event.get("metadata", {})
 
-            if kind == "on_chain_start":
-                node_name = event.get("name", "")
-                if node_name in ("router", "rag", "booking"):
-                    yield sse_event("node_change", {"node": node_name, "description": f"Running {node_name}..."})
+            # Node name is in metadata["langgraph_node"] for LangGraph 1.x
+            lg_node = metadata.get("langgraph_node", "") or event.get("name", "")
 
-            elif kind == "on_chain_end":
+            if kind == "on_chain_start" and lg_node in ("router", "rag", "booking"):
+                if lg_node not in emitted_start_nodes:
+                    emitted_start_nodes.add(lg_node)
+                    yield sse_event("node_change", {"node": lg_node, "description": f"Running {lg_node}..."})
+
+            elif kind == "on_chain_end" and lg_node in ("router", "rag", "booking"):
+                # Only process the first on_chain_end per node to avoid duplicate emissions
+                if lg_node in emitted_end_nodes:
+                    continue
+                emitted_end_nodes.add(lg_node)
+
                 output = event.get("data", {}).get("output", {})
-                if isinstance(output, dict):
-                    # Emit streaming events from state
-                    for ev in output.get("streaming_events", []) or []:
-                        ev_type = ev.get("type", "info")
-                        if ev_type == "node_change":
-                            yield sse_event("node_change", {
-                                "node": ev.get("node", ""),
-                                "description": ev.get("description", ""),
-                            })
-                        elif ev_type == "booking_card":
-                            yield sse_event("booking_card", {k: v for k, v in ev.items() if k != "type"})
-                        elif ev_type == "retrieval_status":
-                            yield sse_event("retrieval_status", {k: v for k, v in ev.items() if k != "type"})
-                        elif ev_type == "booking_confirmed":
-                            yield sse_event("booking_confirmed", {k: v for k, v in ev.items() if k != "type"})
+                if not isinstance(output, dict):
+                    continue
 
-                    # Emit citations
+                # Emit streaming events from state
+                for ev in output.get("streaming_events", []) or []:
+                    ev_type = ev.get("type", "info")
+                    if ev_type == "node_change":
+                        yield sse_event("node_change", {
+                            "node": ev.get("node", ""),
+                            "description": ev.get("description", ""),
+                        })
+                    elif ev_type == "booking_card":
+                        yield sse_event("booking_card", {k: v for k, v in ev.items() if k != "type"})
+                    elif ev_type == "retrieval_status":
+                        yield sse_event("retrieval_status", {k: v for k, v in ev.items() if k != "type"})
+                    elif ev_type == "booking_confirmed":
+                        yield sse_event("booking_confirmed", {k: v for k, v in ev.items() if k != "type"})
+
+                # Emit citations only from the RAG node (not accumulated from prior turns)
+                if lg_node == "rag":
                     for citation in output.get("citations", []) or []:
                         yield sse_event("citation", citation)
 
-                    # Emit assistant messages as tokens
-                    for msg in output.get("messages", []) or []:
-                        if isinstance(msg, dict) and msg.get("role") == "assistant":
-                            content = msg.get("content", "")
-                            # Stream word by word for effect
-                            words = content.split(" ")
-                            for i, word in enumerate(words):
-                                token = word + (" " if i < len(words) - 1 else "")
-                                yield sse_event("token", {"token": token})
-                                await asyncio.sleep(0.01)
+                # Emit only the LAST assistant message (newest answer, not accumulated history)
+                all_msgs = output.get("messages", []) or []
+                last_assistant = None
+                for msg in reversed(all_msgs):
+                    if isinstance(msg, dict) and msg.get("role") == "assistant":
+                        last_assistant = msg
+                        break
+                if last_assistant:
+                    content = last_assistant.get("content", "")
+                    words = content.split(" ")
+                    for i, word in enumerate(words):
+                        token = word + (" " if i < len(words) - 1 else "")
+                        yield sse_event("token", {"token": token})
+                        await asyncio.sleep(0.01)
 
-                    final_state = output
+                final_state = output
 
         # Update thread title from first user message
         if thread_id:
@@ -190,7 +219,8 @@ async def list_docs():
 async def upload_doc(file: UploadFile = File(...)):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
-    tmp_path = Path(f"/tmp/{file.filename}")
+    import tempfile
+    tmp_path = Path(tempfile.gettempdir()) / file.filename
     tmp_path.write_bytes(await file.read())
     try:
         result = await ingest_additional_pdf(tmp_path, file.filename.replace(".pdf", ""))
@@ -202,8 +232,8 @@ async def upload_doc(file: UploadFile = File(...)):
 @app.post("/api/docs/preview")
 async def preview_doc_chunks(body: dict):
     query = body.get("query", "")
-    from backend.rag.ingestor import get_vectorstore
-    from backend.rag.retriever import preview_chunks
+    from rag.ingestor import get_vectorstore
+    from rag.retriever import preview_chunks
     vs = get_vectorstore()
     if not vs:
         return {"chunks": []}
@@ -213,16 +243,17 @@ async def preview_doc_chunks(body: dict):
 
 @app.post("/api/eval/run")
 async def run_eval():
-    from backend.tests.eval_runner import run_all_tests
+    from tests.eval_runner import run_all_tests
     results = await run_all_tests()
     return results
 
 
 @app.get("/api/health")
 async def health():
-    from backend.rag.ingestor import get_vectorstore
+    from rag.ingestor import get_vectorstore
     vs = get_vectorstore()
     return {
         "status": "ok",
         "vectorstore_ready": vs is not None,
     }
+
