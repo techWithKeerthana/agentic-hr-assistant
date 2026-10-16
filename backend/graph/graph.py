@@ -9,13 +9,25 @@ from graph.checkpointer import get_checkpointer
 def route_intent(state: AgentState) -> str:
     """Conditional edge: route based on intent classification."""
     if state.get("injection_detected"):
-        return "rag"  # RAG will handle with abstention for injection
+        return "rag"  # RAG handles injections with safe abstention
     intent = state.get("intent", "unknown")
-    if intent in ("faq", "context_switch"):
+    booking_status = state.get("booking_status")
+    active_booking = booking_status in ("collecting_info", "slot_selection", "pending_confirmation")
+
+    # Mid-booking FAQ (context_switch) → answer via RAG, then resume booking
+    if intent == "context_switch":
+        return "rag"
+
+    # If booking is in progress, route to booking for any message that isn't a genuine FAQ question
+    if active_booking:
+        return "booking"
+
+    # Normal routing (no active booking)
+    if intent == "faq":
         return "rag"
     if intent == "booking":
         return "booking"
-    return "rag"  # default to FAQ for unknown
+    return "rag"  # default unknown → RAG
 
 
 def build_graph(checkpointer=None):

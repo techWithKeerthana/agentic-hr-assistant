@@ -71,6 +71,8 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const prevThreadRef = useRef(null)
+  // Ref so doneData effect always reads latest bookingCard without stale closure
+  const bookingCardRef = useRef(null)
 
   // Load thread message history when threadId changes
   useEffect(() => {
@@ -112,15 +114,16 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
   }, [citations])
 
   useEffect(() => {
+    bookingCardRef.current = bookingCard
     if (bookingCard) setCurrentBookingCard(bookingCard)
   }, [bookingCard])
 
   useEffect(() => {
     if (!doneData) return
-    // Build the final booking card: prefer bookingConfirmed (confirmed state) over current card
+    // Use ref to read latest bookingCard value (avoids stale closure from separate effect)
     const finalCard = bookingConfirmed
       ? { status: 'confirmed', ref_id: bookingConfirmed.ref_id, slot_label: bookingConfirmed.slot_label }
-      : currentBookingCard
+      : bookingCardRef.current
 
     const content = streamingContent || ''
     if (content || finalCard) {
