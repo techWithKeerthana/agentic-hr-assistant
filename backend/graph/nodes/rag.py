@@ -1,4 +1,5 @@
 ﻿import os
+import json
 import logging
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -29,6 +30,34 @@ def get_llm():
         api_key=os.getenv("GROQ_API_KEY"),
         streaming=True,
     )
+
+
+def _generate_follow_ups(question: str, answer: str, llm) -> list[str]:
+    """Ask LLM for 2-3 short follow-up questions based on the Q&A."""
+    prompt = (
+        "Based on this HR question and answer, suggest 2-3 short follow-up questions "
+        "an employee might ask next.\n"
+        f"Question: {question}\n"
+        f"Answer: {answer[:300]}\n"
+        "Return ONLY a JSON array of strings, e.g. [\"Question 1?\", \"Question 2?\"]\n"
+        "Keep each question under 8 words."
+    )
+    try:
+        resp = llm.invoke([HumanMessage(content=prompt)])
+        content = resp.content.strip()
+        # Strip markdown fences if present
+        if "```" in content:
+            parts = content.split("```")
+            content = parts[1].lstrip("json").strip() if len(parts) > 1 else content
+        start = content.find("[")
+        end = content.rfind("]")
+        if start >= 0 and end > start:
+            parsed = json.loads(content[start:end + 1])
+            if isinstance(parsed, list):
+                return [q for q in parsed if isinstance(q, str)][:3]
+    except Exception:
+        pass
+    return []
 
 
 def rag_node(state: AgentState) -> AgentState:
@@ -74,6 +103,9 @@ def rag_node(state: AgentState) -> AgentState:
         "abstain": abstain,
     })
 
+    follow_ups: list[str] = []
+    llm = get_llm()
+
     if abstain or not chunks:
         answer = "The employee handbook doesn't contain enough information to answer this question confidently. Please contact HR directly for assistance."
         citations = []
@@ -82,7 +114,6 @@ def rag_node(state: AgentState) -> AgentState:
             f"[{c['doc_name']}, Page {c['page_number']}]\n{c['text']}"
             for c in chunks
         )
-        llm = get_llm()
         response = llm.invoke([
             SystemMessage(content=RAG_SYSTEM.format(context=context_str)),
             HumanMessage(content=last_message),
@@ -90,6 +121,11 @@ def rag_node(state: AgentState) -> AgentState:
         answer = response.content
         citations = extract_citations(chunks)
         confidence = compute_citation_confidence(chunks, answer)
+
+        # Generate follow-up question chips
+        follow_ups = _generate_follow_ups(last_message, answer, llm)
+
+    events.append({"type": "follow_up_questions", "questions": follow_ups})
 
     # If user was mid-booking, append a reminder to resume
     pending = state.get("pending_action")
@@ -107,6 +143,3 @@ def rag_node(state: AgentState) -> AgentState:
         "streaming_events": events,
         "messages": [{"role": "assistant", "content": answer}],
     }
-
-
-

@@ -135,6 +135,8 @@ async def stream_graph_response(message: str, thread_id: str):
                         yield sse_event("retrieval_status", {k: v for k, v in ev.items() if k != "type"})
                     elif ev_type == "booking_confirmed":
                         yield sse_event("booking_confirmed", {k: v for k, v in ev.items() if k != "type"})
+                    elif ev_type == "follow_up_questions":
+                        yield sse_event("followup_questions", {"questions": ev.get("questions", [])})
 
                 # Emit citations only from the RAG node (not accumulated from prior turns)
                 if lg_node == "rag":

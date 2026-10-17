@@ -4,6 +4,7 @@ import ThreadSidebar from './components/ThreadSidebar'
 import ChatWindow from './components/ChatWindow'
 import EvalDashboard from './components/EvalDashboard'
 import DocPanel from './components/DocPanel'
+import ThemeToggle from './components/ThemeToggle'
 import { useSSE } from './hooks/useSSE'
 import { useThread } from './hooks/useThread'
 
@@ -34,7 +35,10 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-950 text-gray-100 overflow-hidden">
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+    >
       {/* Left sidebar */}
       <ThreadSidebar
         threads={threads}
@@ -48,24 +52,34 @@ export default function App() {
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* Tab bar */}
-        <div className="flex items-center gap-1 px-4 pt-3 pb-0 border-b border-gray-800 bg-gray-950">
-          {TABS.map(tab => {
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg transition-colors border-b-2 ${
-                  activeTab === tab.id
-                    ? 'text-indigo-400 border-indigo-500 bg-gray-900/50'
-                    : 'text-gray-500 border-transparent hover:text-gray-300'
-                }`}
-              >
-                <Icon size={15} />
-                {tab.label}
-              </button>
-            )
-          })}
+        <div
+          className="flex items-center justify-between px-4 pt-3 pb-0 border-b"
+          style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+        >
+          <div className="flex items-center gap-1">
+            {TABS.map(tab => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg transition-colors border-b-2"
+                  style={{
+                    color: isActive ? 'var(--accent-fg)' : 'var(--text-secondary)',
+                    borderBottomColor: isActive ? 'var(--accent)' : 'transparent',
+                    backgroundColor: isActive ? 'var(--bg-secondary)' : 'transparent',
+                  }}
+                >
+                  <Icon size={15} />
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+          <div className="pb-2">
+            <ThemeToggle />
+          </div>
         </div>
 
         {/* Tab content */}

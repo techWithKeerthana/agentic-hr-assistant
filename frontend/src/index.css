@@ -2,10 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── CSS Design Tokens ───────────────────────────────────────────────── */
+
+/* Light theme (default) */
+:root {
+  --bg-primary:   #f5f7fa;
+  --bg-secondary: #eef1f6;
+  --bg-card:      #ffffff;
+  --bg-input:     #f0f3f8;
+  --border:       #d8dde8;
+  --text-primary: #1a1d23;
+  --text-secondary: #5a6170;
+  --text-faint:   #9ca3af;
+  --accent:       #5b4cf5;
+  --accent-soft:  #ede9ff;
+  --accent-fg:    #4338ca;
+}
+
+/* Dark theme */
+[data-theme="dark"] {
+  --bg-primary:   #0f1117;
+  --bg-secondary: #111827;
+  --bg-card:      #1f2937;
+  --bg-input:     #374151;
+  --border:       #374151;
+  --text-primary: #f3f4f6;
+  --text-secondary: #8891a4;
+  --text-faint:   #6b7280;
+  --accent:       #7c6fff;
+  --accent-soft:  #2a2550;
+  --accent-fg:    #818cf8;
+}
+
+/* System mode: follow OS preference when no data-theme is set */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-primary:   #0f1117;
+    --bg-secondary: #111827;
+    --bg-card:      #1f2937;
+    --bg-input:     #374151;
+    --border:       #374151;
+    --text-primary: #f3f4f6;
+    --text-secondary: #8891a4;
+    --text-faint:   #6b7280;
+    --accent:       #7c6fff;
+    --accent-soft:  #2a2550;
+    --accent-fg:    #818cf8;
+  }
+}
+
+/* ── Base ────────────────────────────────────────────────────────────── */
+
 @layer base {
   html { font-family: system-ui, -apple-system, sans-serif; }
-  body { @apply bg-gray-950 text-gray-100; }
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+  }
 }
+
+/* ── Animations ──────────────────────────────────────────────────────── */
 
 @keyframes pulse-dot {
   0%, 80%, 100% { opacity: 0; }
@@ -17,10 +73,15 @@
 
 @keyframes node-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
-  50% { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+  50%       { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
 }
 .node-running { animation: node-pulse 1.5s infinite; }
 
+/* ── Scrollbar ───────────────────────────────────────────────────────── */
+
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}

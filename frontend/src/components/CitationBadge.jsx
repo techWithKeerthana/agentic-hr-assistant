@@ -9,17 +9,20 @@ export default function CitationBadge({ citations = [], confidence, abstained })
 
   return (
     <div className="mt-2 space-y-1">
-      {/* Evidence badge */}
       <div className="flex items-center gap-2 flex-wrap">
         {abstained ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-gray-800 text-gray-400 border border-gray-700">
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border"
+            style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', borderColor: 'var(--border)' }}
+          >
             <AlertCircle size={12} />
             Insufficient information
           </span>
         ) : (
           <button
             onClick={() => setExpanded(e => !e)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-emerald-900/30 text-emerald-400 border border-emerald-800 hover:bg-emerald-900/50 transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors"
+            style={{ backgroundColor: 'rgba(52,211,153,0.1)', color: '#4ade80', borderColor: 'rgba(52,211,153,0.3)' }}
           >
             <CheckCircle size={12} />
             Evidence available
@@ -31,7 +34,8 @@ export default function CitationBadge({ citations = [], confidence, abstained })
           <button
             key={i}
             onClick={() => setOpenIdx(openIdx === i ? null : i)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-blue-900/30 text-blue-400 border border-blue-800 hover:bg-blue-900/50 transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors"
+            style={{ backgroundColor: 'rgba(96,165,250,0.1)', color: '#60a5fa', borderColor: 'rgba(96,165,250,0.3)' }}
           >
             <FileText size={12} />
             {c.doc} · Page {c.page}
@@ -39,17 +43,23 @@ export default function CitationBadge({ citations = [], confidence, abstained })
         ))}
       </div>
 
-      {/* Snippet previews */}
       {expanded && citations.map((c, i) => (
-        <div key={i} className={`text-xs text-gray-300 bg-gray-800/60 border border-gray-700 rounded-lg p-3 ${openIdx !== null && openIdx !== i ? 'hidden' : ''}`}>
-          <p className="text-gray-500 mb-1 font-medium">{c.doc}, Page {c.page}</p>
+        <div
+          key={i}
+          className={`text-xs rounded-lg p-3 border ${openIdx !== null && openIdx !== i ? 'hidden' : ''}`}
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+        >
+          <p className="mb-1 font-medium" style={{ color: 'var(--text-secondary)' }}>{c.doc}, Page {c.page}</p>
           <p className="leading-relaxed">{c.snippet}</p>
         </div>
       ))}
 
       {openIdx !== null && !expanded && citations[openIdx] && (
-        <div className="text-xs text-gray-300 bg-gray-800/60 border border-gray-700 rounded-lg p-3">
-          <p className="text-gray-500 mb-1 font-medium">{citations[openIdx].doc}, Page {citations[openIdx].page}</p>
+        <div
+          className="text-xs rounded-lg p-3 border"
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+        >
+          <p className="mb-1 font-medium" style={{ color: 'var(--text-secondary)' }}>{citations[openIdx].doc}, Page {citations[openIdx].page}</p>
           <p className="leading-relaxed">{citations[openIdx].snippet}</p>
         </div>
       )}

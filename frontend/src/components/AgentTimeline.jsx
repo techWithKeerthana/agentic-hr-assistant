@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, CheckCircle2, Loader2, Circle } from 'lucide-react'
+import { ChevronDown, ChevronUp, CheckCircle2, Loader2 } from 'lucide-react'
 
 const NODE_LABELS = {
   router: 'Router Agent',
@@ -9,10 +9,10 @@ const NODE_LABELS = {
 }
 
 const NODE_COLORS = {
-  router: 'text-purple-400',
-  rag: 'text-blue-400',
-  booking: 'text-emerald-400',
-  entry: 'text-gray-400',
+  router: '#a78bfa',   /* purple-400 */
+  rag: '#60a5fa',      /* blue-400 */
+  booking: '#34d399',  /* emerald-400 */
+  entry: '#9ca3af',    /* gray-400 */
 }
 
 export default function AgentTimeline({ nodeEvents, isStreaming }) {
@@ -21,10 +21,16 @@ export default function AgentTimeline({ nodeEvents, isStreaming }) {
   if (!nodeEvents.length && !isStreaming) return null
 
   return (
-    <div className="bg-gray-900/80 border border-gray-700 rounded-xl mb-3 overflow-hidden">
+    <div
+      className="rounded-xl mb-3 overflow-hidden border"
+      style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
+    >
       <button
         onClick={() => setCollapsed(c => !c)}
-        className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-gray-400 hover:text-gray-300 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2.5 text-xs transition-colors"
+        style={{ color: 'var(--text-secondary)' }}
+        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)' }}
+        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)' }}
       >
         <span className="font-semibold uppercase tracking-wider">Agent Execution Timeline</span>
         {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
@@ -45,19 +51,21 @@ export default function AgentTimeline({ nodeEvents, isStreaming }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs font-semibold ${NODE_COLORS[ev.node] || 'text-gray-300'}`}>
+                    <span className="text-xs font-semibold" style={{ color: NODE_COLORS[ev.node] || 'var(--text-primary)' }}>
                       {ev.display_name || NODE_LABELS[ev.node] || ev.node}
                     </span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                      isRunning
-                        ? 'bg-indigo-900/50 text-indigo-300 border border-indigo-700'
-                        : 'bg-green-900/30 text-green-400 border border-green-800'
-                    }`}>
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded-full font-medium border"
+                      style={isRunning
+                        ? { backgroundColor: 'rgba(99,102,241,0.15)', color: '#a5b4fc', borderColor: 'rgba(99,102,241,0.4)' }
+                        : { backgroundColor: 'rgba(34,197,94,0.1)', color: '#4ade80', borderColor: 'rgba(34,197,94,0.3)' }
+                      }
+                    >
                       {isRunning ? 'Running' : 'Completed'}
                     </span>
                   </div>
                   {ev.description && (
-                    <p className="text-xs text-gray-500 mt-0.5 truncate">{ev.description}</p>
+                    <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-secondary)' }}>{ev.description}</p>
                   )}
                 </div>
               </div>
@@ -67,7 +75,7 @@ export default function AgentTimeline({ nodeEvents, isStreaming }) {
           {isStreaming && nodeEvents.length === 0 && (
             <div className="flex items-center gap-3">
               <Loader2 size={16} className="text-indigo-400 animate-spin" />
-              <span className="text-xs text-gray-400">Initializing...</span>
+              <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Initializing...</span>
             </div>
           )}
         </div>

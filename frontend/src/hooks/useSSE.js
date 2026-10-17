@@ -10,6 +10,7 @@ export function useSSE() {
   const [bookingCard, setBookingCard] = useState(null)
   const [bookingConfirmed, setBookingConfirmed] = useState(null)
   const [retrievalStatus, setRetrievalStatus] = useState(null)
+  const [followUpQuestions, setFollowUpQuestions] = useState([])
   const [isDone, setIsDone] = useState(false)
   const [error, setError] = useState(null)
   const [doneData, setDoneData] = useState(null)
@@ -22,6 +23,7 @@ export function useSSE() {
     setBookingCard(null)
     setBookingConfirmed(null)
     setRetrievalStatus(null)
+    setFollowUpQuestions([])
     setIsDone(false)
     setError(null)
     setDoneData(null)
@@ -123,6 +125,9 @@ export function useSSE() {
       case 'retrieval_status':
         setRetrievalStatus(data)
         break
+      case 'followup_questions':
+        if (Array.isArray(data.questions)) setFollowUpQuestions(data.questions)
+        break
       case 'done':
         setDoneData(data)
         setIsDone(true)
@@ -150,6 +155,7 @@ export function useSSE() {
     bookingCard,
     bookingConfirmed,
     retrievalStatus,
+    followUpQuestions,
     isDone,
     error,
     doneData,
