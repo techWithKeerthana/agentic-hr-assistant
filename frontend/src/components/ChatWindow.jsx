@@ -22,6 +22,17 @@ const SUGGESTION_CHIPS = [
   '📅 Book an HR appointment',
 ]
 
+function cleanTextForSpeech(text) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/#{1,6}\s/g, '')
+    .replace(/\[.*?\]\(.*?\)/g, '')
+    .replace(/`.*?`/g, '')
+    .replace(/\[\d+\]/g, '')
+    .trim()
+}
+
 function TypingIndicator() {
   const dot = { width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--text-secondary)', display: 'inline-block' }
   return (
@@ -35,13 +46,45 @@ function TypingIndicator() {
 
 function MessageBubble({ message, onSlotSelect, onCancel, onConfirm }) {
   const isUser = message.role === 'user'
+  const [hovered, setHovered] = useState(false)
+  const [speaking, setSpeaking] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const speakMessage = () => {
+    if (!window.speechSynthesis) return
+    window.speechSynthesis.cancel()
+    if (speaking) { setSpeaking(false); return }
+    const utterance = new SpeechSynthesisUtterance(cleanTextForSpeech(message.content))
+    utterance.lang = 'en-US'
+    utterance.rate = 1.0
+    utterance.pitch = 1.0
+    const voices = window.speechSynthesis.getVoices()
+    const preferred = voices.find(v =>
+      v.name.includes('Google') || v.name.includes('Samantha') ||
+      v.name.includes('Karen') || (v.lang === 'en-US' && v.localService)
+    )
+    if (preferred) utterance.voice = preferred
+    utterance.onstart = () => setSpeaking(true)
+    utterance.onend = () => setSpeaking(false)
+    utterance.onerror = () => setSpeaking(false)
+    window.speechSynthesis.speak(utterance)
+  }
+
+  const copyMessage = () => {
+    navigator.clipboard.writeText(message.content).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
   return (
     <div className="message-enter" style={{
       display: 'flex',
       justifyContent: isUser ? 'flex-end' : 'flex-start',
       gap: '10px',
-      marginBottom: '16px',
+      marginBottom: hovered && !isUser ? '32px' : '16px',
       alignItems: 'flex-start',
+      transition: 'margin-bottom 0.15s',
     }}>
       {!isUser && (
         <div style={{
@@ -55,30 +98,69 @@ function MessageBubble({ message, onSlotSelect, onCancel, onConfirm }) {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: isUser ? '75%' : '85%', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
-        <div style={isUser
-          ? {
-              padding: '12px 16px',
-              borderRadius: '18px 18px 4px 18px',
-              background: 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
-              color: '#fff',
-              fontSize: '14px',
-              lineHeight: '1.6',
-              boxShadow: '0 4px 16px rgba(91,76,245,0.3)',
-              whiteSpace: 'pre-wrap',
-            }
-          : {
-              padding: '14px 18px',
-              borderRadius: '4px 18px 18px 18px',
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              color: 'var(--text-primary)',
-              fontSize: '14px',
-              lineHeight: '1.7',
-              boxShadow: 'var(--shadow-sm)',
-              whiteSpace: 'pre-wrap',
-            }
-        }>
-          {message.content}
+        {/* Bubble with hover wrapper for assistant messages */}
+        <div
+          style={{ position: 'relative' }}
+          onMouseEnter={() => !isUser && setHovered(true)}
+          onMouseLeave={() => !isUser && setHovered(false)}
+        >
+          <div style={isUser
+            ? {
+                padding: '12px 16px',
+                borderRadius: '18px 18px 4px 18px',
+                background: 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
+                color: '#fff', fontSize: '14px', lineHeight: '1.6',
+                boxShadow: '0 4px 16px rgba(91,76,245,0.3)', whiteSpace: 'pre-wrap',
+              }
+            : {
+                padding: '14px 18px',
+                borderRadius: '4px 18px 18px 18px',
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                color: 'var(--text-primary)', fontSize: '14px', lineHeight: '1.7',
+                boxShadow: 'var(--shadow-sm)', whiteSpace: 'pre-wrap',
+              }
+          }>
+            {message.content}
+          </div>
+
+          {/* Action bar — hover reveal on assistant messages */}
+          {!isUser && hovered && (
+            <div style={{
+              position: 'absolute', bottom: '-28px', left: '4px',
+              display: 'flex', gap: '4px',
+              animation: 'fadeIn 0.15s ease',
+            }}>
+              <button
+                onClick={speakMessage}
+                title={speaking ? 'Stop' : 'Read aloud'}
+                style={{
+                  padding: '3px 8px', borderRadius: '6px',
+                  border: '1px solid var(--border)', background: 'var(--bg-card)',
+                  color: speaking ? 'var(--accent)' : 'var(--text-muted)',
+                  fontSize: '11px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  transition: 'all 0.15s', fontFamily: 'inherit', fontWeight: 500,
+                }}
+                onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
+                onMouseOut={e => { if (!speaking) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' } }}
+              >
+                {speaking ? '⏹ Stop' : '🔊 Read aloud'}
+              </button>
+              <button
+                onClick={copyMessage}
+                title="Copy"
+                style={{
+                  padding: '3px 8px', borderRadius: '6px',
+                  border: '1px solid var(--border)', background: 'var(--bg-card)',
+                  color: copied ? 'var(--success)' : 'var(--text-muted)',
+                  fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {copied ? '✓ Copied' : '📋 Copy'}
+              </button>
+            </div>
+          )}
         </div>
 
         {!isUser && (message.citations?.length > 0 || message.abstained) && (
@@ -117,10 +199,14 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState, userNam
   const [currentBookingCard, setCurrentBookingCard] = useState(null)
   const [shownFollowUps, setShownFollowUps] = useState([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const [transcript, setTranscript] = useState('')
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const prevThreadRef = useRef(null)
   const bookingCardRef = useRef(null)
+  const recognitionRef = useRef(null)
+  const transcriptRef = useRef('')
 
   useEffect(() => {
     if (!threadId || threadId === prevThreadRef.current) return
@@ -187,6 +273,38 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState, userNam
     setCurrentNodeEvents([])
     if (onThreadUpdated) onThreadUpdated()
   }, [doneData])
+
+  const startListening = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) { alert('Voice input is not supported in this browser. Try Chrome.'); return }
+    const recognition = new SR()
+    recognition.lang = 'en-US'
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.onstart = () => { setIsListening(true); setTranscript(''); transcriptRef.current = '' }
+    recognition.onresult = (event) => {
+      let interim = '', final = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript
+        if (event.results[i].isFinal) final += t
+        else interim += t
+      }
+      const current = final || interim
+      setTranscript(current)
+      transcriptRef.current = current
+      if (final) setInput(final)
+    }
+    recognition.onend = () => {
+      setIsListening(false)
+      const said = transcriptRef.current
+      if (said) { handleSend(said); setTranscript(''); transcriptRef.current = '' }
+    }
+    recognition.onerror = (e) => { console.error('Speech error:', e.error); setIsListening(false) }
+    recognitionRef.current = recognition
+    recognition.start()
+  }
+
+  const stopListening = () => { recognitionRef.current?.stop(); setIsListening(false) }
 
   const handleSend = async (text) => {
     const msg = (text || input).trim()
@@ -256,55 +374,98 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState, userNam
   )
 
   const inputBar = (centered = false) => (
-    <div
-      style={{
-        display: 'flex', gap: '10px', alignItems: 'flex-end',
-        background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: centered ? '20px' : '16px',
-        padding: centered ? '14px 16px' : '10px 12px',
-        boxShadow: centered ? '0 4px 24px rgba(0,0,0,0.2)' : 'var(--shadow-sm)',
-        transition: 'border-color 0.2s, box-shadow 0.2s',
-      }}
-      onFocusCapture={e => {
-        e.currentTarget.style.borderColor = 'var(--accent)'
-        e.currentTarget.style.boxShadow = centered ? '0 0 0 3px var(--accent-soft), 0 4px 24px rgba(0,0,0,0.2)' : '0 0 0 3px var(--accent-soft)'
-      }}
-      onBlurCapture={e => {
-        e.currentTarget.style.borderColor = 'var(--border)'
-        e.currentTarget.style.boxShadow = centered ? '0 4px 24px rgba(0,0,0,0.2)' : 'var(--shadow-sm)'
-      }}
-    >
-      <textarea
-        ref={inputRef}
-        value={input}
-        onChange={e => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        disabled={isStreaming}
-        placeholder="Ask about NexaHR policies or book an appointment..."
-        rows={1}
+    <div style={{ position: 'relative' }}>
+      {/* Live transcript preview */}
+      {isListening && (
+        <div style={{
+          position: 'absolute', bottom: '100%', left: 0, right: 0,
+          padding: '10px 16px', marginBottom: '8px',
+          background: 'var(--bg-card)',
+          border: '1px solid rgba(239,68,68,0.3)',
+          borderRadius: '12px', fontSize: '14px', color: 'var(--text-primary)',
+          display: 'flex', alignItems: 'center', gap: '10px',
+          animation: 'fadeIn 0.15s ease',
+        }}>
+          <div style={{
+            width: '8px', height: '8px', borderRadius: '50%',
+            background: '#ef4444', flexShrink: 0,
+            animation: 'micPulse 1s ease-in-out infinite',
+          }} />
+          <span style={{ fontStyle: transcript ? 'normal' : 'italic', color: transcript ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+            {transcript || 'Listening… speak now'}
+          </span>
+        </div>
+      )}
+
+      <div
         style={{
-          flex: 1, border: 'none', background: 'transparent',
-          color: 'var(--text-primary)', fontSize: '14px',
-          resize: 'none', outline: 'none', lineHeight: '1.5',
-          maxHeight: '120px', overflowY: 'auto', fontFamily: 'inherit',
-          opacity: isStreaming ? 0.5 : 1,
+          display: 'flex', gap: '8px', alignItems: 'flex-end',
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderRadius: centered ? '20px' : '16px',
+          padding: centered ? '14px 16px' : '10px 12px',
+          boxShadow: centered ? '0 4px 24px rgba(0,0,0,0.2)' : 'var(--shadow-sm)',
+          transition: 'border-color 0.2s, box-shadow 0.2s',
         }}
-      />
-      <button
-        onClick={() => handleSend()}
-        disabled={!input.trim() || isStreaming}
-        style={{
-          width: '36px', height: '36px', borderRadius: '10px', border: 'none',
-          background: (!input.trim() || isStreaming) ? 'var(--bg-hover)' : 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
-          color: (!input.trim() || isStreaming) ? 'var(--text-muted)' : '#fff',
-          fontSize: '18px', cursor: (!input.trim() || isStreaming) ? 'not-allowed' : 'pointer',
-          flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: (!input.trim() || isStreaming) ? 'none' : '0 2px 8px rgba(91,76,245,0.3)',
-          transition: 'transform 0.1s, box-shadow 0.1s', fontFamily: 'inherit',
+        onFocusCapture={e => {
+          e.currentTarget.style.borderColor = 'var(--accent)'
+          e.currentTarget.style.boxShadow = centered ? '0 0 0 3px var(--accent-soft), 0 4px 24px rgba(0,0,0,0.2)' : '0 0 0 3px var(--accent-soft)'
         }}
-        onMouseOver={e => { if (input.trim() && !isStreaming) e.currentTarget.style.transform = 'scale(1.05)' }}
-        onMouseOut={e => { e.currentTarget.style.transform = 'scale(1)' }}
-      >↑</button>
+        onBlurCapture={e => {
+          e.currentTarget.style.borderColor = 'var(--border)'
+          e.currentTarget.style.boxShadow = centered ? '0 4px 24px rgba(0,0,0,0.2)' : 'var(--shadow-sm)'
+        }}
+      >
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isStreaming}
+          placeholder="Ask about NexaHR policies or book an appointment..."
+          rows={1}
+          style={{
+            flex: 1, border: 'none', background: 'transparent',
+            color: 'var(--text-primary)', fontSize: '14px',
+            resize: 'none', outline: 'none', lineHeight: '1.5',
+            maxHeight: '120px', overflowY: 'auto', fontFamily: 'inherit',
+            opacity: isStreaming ? 0.5 : 1,
+          }}
+        />
+
+        {/* Mic button */}
+        <button
+          onClick={isListening ? stopListening : startListening}
+          title={isListening ? 'Stop recording' : 'Speak your question'}
+          style={{
+            width: '36px', height: '36px', borderRadius: '10px', border: 'none',
+            background: isListening ? 'rgba(239,68,68,0.15)' : 'var(--bg-hover)',
+            color: isListening ? '#ef4444' : 'var(--text-secondary)',
+            cursor: 'pointer', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '16px', transition: 'all 0.2s',
+            boxShadow: isListening ? '0 0 0 3px rgba(239,68,68,0.25)' : 'none',
+            animation: isListening ? 'micPulse 1.5s ease-in-out infinite' : 'none',
+            fontFamily: 'inherit',
+          }}
+        >{isListening ? '⏹' : '🎤'}</button>
+
+        {/* Send button */}
+        <button
+          onClick={() => handleSend()}
+          disabled={!input.trim() || isStreaming}
+          style={{
+            width: '36px', height: '36px', borderRadius: '10px', border: 'none',
+            background: (!input.trim() || isStreaming) ? 'var(--bg-hover)' : 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
+            color: (!input.trim() || isStreaming) ? 'var(--text-muted)' : '#fff',
+            fontSize: '18px', cursor: (!input.trim() || isStreaming) ? 'not-allowed' : 'pointer',
+            flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: (!input.trim() || isStreaming) ? 'none' : '0 2px 8px rgba(91,76,245,0.3)',
+            transition: 'transform 0.1s, box-shadow 0.1s', fontFamily: 'inherit',
+          }}
+          onMouseOver={e => { if (input.trim() && !isStreaming) e.currentTarget.style.transform = 'scale(1.05)' }}
+          onMouseOut={e => { e.currentTarget.style.transform = 'scale(1)' }}
+        >↑</button>
+      </div>
     </div>
   )
 
@@ -332,7 +493,7 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState, userNam
           </p>
 
           {/* Suggestion chips */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', marginBottom: '32px', maxWidth: '560px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', marginBottom: '32px', maxWidth: '580px' }}>
             {SUGGESTION_CHIPS.map(chip => (
               <button
                 key={chip}
@@ -347,6 +508,15 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState, userNam
                 onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.background = 'var(--bg-card)' }}
               >{chip}</button>
             ))}
+            {/* Non-clickable voice prompt */}
+            <div style={{
+              padding: '10px 16px', borderRadius: '99px',
+              border: '1.5px dashed rgba(91,76,245,0.4)',
+              color: 'var(--accent)', fontSize: '13px', fontWeight: 500, opacity: 0.75,
+              userSelect: 'none',
+            }}>
+              🎤 Or just click the mic button below!
+            </div>
           </div>
 
           {/* Centered input */}

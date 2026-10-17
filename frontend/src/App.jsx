@@ -122,6 +122,18 @@ export default function App() {
           <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.3px', color: 'var(--text-primary)' }}>
             NexaHR
           </span>
+          {(window.SpeechRecognition || window.webkitSpeechRecognition) && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '4px',
+              padding: '2px 8px', borderRadius: '99px',
+              background: 'rgba(16,185,129,0.1)',
+              border: '1px solid rgba(16,185,129,0.2)',
+              fontSize: '11px', color: '#10b981', fontWeight: 500,
+            }}>
+              <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#10b981', animation: 'pulse 2s infinite' }} />
+              Voice
+            </div>
+          )}
         </div>
 
         {/* Tab bar */}

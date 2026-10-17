@@ -143,3 +143,8 @@ input:focus, textarea:focus {
 .message-enter {
   animation: fadeIn 0.25s ease forwards;
 }
+
+@keyframes micPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(239,68,68,0.25); }
+  50%       { box-shadow: 0 0 0 8px rgba(239,68,68,0.05); }
+}
