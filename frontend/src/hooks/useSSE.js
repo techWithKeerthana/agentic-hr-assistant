@@ -34,6 +34,9 @@ export function useSSE() {
     const controller = new AbortController()
     abortRef.current = controller
 
+    // 60-second timeout — Render free tier can be slow to wake up
+    const timeoutId = setTimeout(() => controller.abort('timeout'), 60_000)
+
     reset()
     setIsStreaming(true)
 
@@ -46,6 +49,8 @@ export function useSSE() {
       })
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+      clearTimeout(timeoutId)
 
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
@@ -79,7 +84,10 @@ export function useSSE() {
         }
       }
     } catch (err) {
-      if (err.name !== 'AbortError') {
+      clearTimeout(timeoutId)
+      if (err.name === 'AbortError' || err.message === 'timeout') {
+        setError('Backend is waking up, please try again in 30 seconds.')
+      } else {
         setError('Connection error. Please try again.')
       }
     } finally {
