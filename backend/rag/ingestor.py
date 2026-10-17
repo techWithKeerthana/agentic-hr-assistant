@@ -1,4 +1,5 @@
 import os
+import gc
 import logging
 import httpx
 from pathlib import Path
@@ -127,12 +128,24 @@ async def ingest_all_pdfs() -> Chroma:
     if not all_chunks:
         all_chunks = []
 
+    # Create the collection from the first batch, then add remaining in batches
+    BATCH_SIZE = 20
+    first_batch = all_chunks[:BATCH_SIZE]
     _vectorstore = Chroma.from_documents(
-        documents=all_chunks,
+        documents=first_batch,
         embedding=embeddings,
         persist_directory=CHROMA_DIR,
         collection_name="hr_docs",
     )
+    gc.collect()
+
+    remaining = all_chunks[BATCH_SIZE:]
+    for i in range(0, len(remaining), BATCH_SIZE):
+        batch = remaining[i : i + BATCH_SIZE]
+        _vectorstore.add_documents(batch)
+        gc.collect()
+        logger.info(f"Ingested batch {i // BATCH_SIZE + 2} ({len(batch)} chunks)")
+
     build_bm25(all_chunks)
     logger.info(f"ChromaDB vectorstore built with {len(all_chunks)} chunks")
     return _vectorstore

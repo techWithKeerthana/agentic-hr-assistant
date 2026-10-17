@@ -4,6 +4,7 @@ import json
 import uuid
 import asyncio
 import logging
+import threading
 from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -28,28 +29,38 @@ from db.database import (
 )
 from graph.graph import get_graph, build_graph, set_graph
 from graph.checkpointer import init_checkpointer
-from rag.ingestor import ingest_all_pdfs, ingest_additional_pdf, get_doc_stats
+from rag.ingestor import ingest_all_pdfs, ingest_if_needed, ingest_additional_pdf, get_doc_stats
 from security.guardrails import check_injection, sanitize_input
 from auth.auth import hash_password, verify_password, create_token, decode_token
+
+
+_rag_ready = False
+_rag_lock = threading.Lock()
+
+
+def ensure_rag_ready():
+    """Lazy-init ChromaDB on the first RAG query — keeps startup fast and under 512 MB."""
+    global _rag_ready
+    if _rag_ready:
+        return
+    with _rag_lock:
+        if not _rag_ready:
+            try:
+                ingest_if_needed()
+            except Exception as e:
+                logger.warning(f"ensure_rag_ready: {e}")
+            _rag_ready = True
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     seed_slots()
-    logger.info("Database initialized")
-    # Initialize async checkpointer and build the graph
+    logger.info("Database and slots initialized — RAG deferred to first query")
     checkpointer = await init_checkpointer()
     graph = build_graph(checkpointer)
     set_graph(graph)
     logger.info("LangGraph initialized with AsyncSqliteSaver")
-    # Re-ingest PDFs if ChromaDB is empty (handles Render cold starts)
-    try:
-        from rag.ingestor import ingest_if_needed
-        ingest_if_needed()
-    except Exception as e:
-        logger.warning(f"ingest_if_needed: {e}")
-        asyncio.create_task(ingest_all_pdfs())
     yield
 
 
@@ -81,6 +92,7 @@ def sse_event(event_type: str, data: dict) -> str:
 
 async def stream_graph_response(message: str, thread_id: str):
     """Stream LangGraph events as SSE."""
+    ensure_rag_ready()
     graph = get_graph()
     if graph is None:
         yield sse_event("error", {"message": "System is initializing. Please try again in a moment."})
