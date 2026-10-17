@@ -314,6 +314,78 @@ async def run_eval():
     return results
 
 
+@app.get("/api/bookings/{booking_id}")
+async def get_booking_endpoint(booking_id: int):
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return dict(row)
+
+
+@app.post("/api/bookings/{booking_id}/cancel")
+async def cancel_booking_endpoint(booking_id: int):
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if row["status"] == "cancelled":
+        conn.close()
+        raise HTTPException(status_code=400, detail="Already cancelled")
+    try:
+        conn.execute("UPDATE slots SET available = 1 WHERE id = ?", (row["slot_id"],))
+        conn.execute(
+            "UPDATE bookings SET status = 'cancelled', updated_at = ? WHERE id = ?",
+            (datetime.now().isoformat(), booking_id),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(status_code=500, detail="Could not cancel booking")
+    conn.close()
+    return {"success": True, "message": "Booking cancelled"}
+
+
+@app.post("/api/bookings/{booking_id}/reschedule")
+async def reschedule_booking_endpoint(booking_id: int, body: dict):
+    new_slot_id = body.get("new_slot_id")
+    if not new_slot_id:
+        raise HTTPException(status_code=400, detail="new_slot_id required")
+    conn = get_connection()
+    booking = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    if not booking:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if booking["status"] == "cancelled":
+        conn.close()
+        raise HTTPException(status_code=400, detail="Cannot reschedule cancelled booking")
+    now_iso = datetime.now().isoformat()
+    new_slot = conn.execute(
+        "SELECT * FROM slots WHERE id = ? AND available = 1 AND datetime_iso > ?",
+        (new_slot_id, now_iso),
+    ).fetchone()
+    if not new_slot:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Slot not available")
+    try:
+        conn.execute("UPDATE slots SET available = 1 WHERE id = ?", (booking["slot_id"],))
+        conn.execute("UPDATE slots SET available = 0 WHERE id = ?", (new_slot_id,))
+        conn.execute(
+            "UPDATE bookings SET slot_id = ?, slot_label = ?, status = 'confirmed', updated_at = ? WHERE id = ?",
+            (new_slot_id, new_slot["label"], datetime.now().isoformat(), booking_id),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(status_code=500, detail="Could not reschedule booking")
+    conn.close()
+    return {"success": True, "message": f"Rescheduled to {new_slot['label']}"}
+
+
 @app.get("/api/analytics/summary")
 async def get_analytics_summary():
     """Live booking stats for the HR Analytics Dashboard."""
@@ -347,7 +419,7 @@ async def get_analytics_summary():
     """).fetchall()
 
     recent = conn.execute("""
-        SELECT name, email, slot_label, status, created_at
+        SELECT id, ref_id, name, email, slot_label, status, created_at
         FROM bookings
         ORDER BY created_at DESC
         LIMIT 5

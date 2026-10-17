@@ -232,7 +232,12 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState(null)
   const [secondsAgo, setSecondsAgo] = useState(0)
 
-  const fetch_ = useCallback(async () => {
+  // Reschedule modal state
+  const [rescheduleModal, setRescheduleModal] = useState({ open: false })
+  const [selectedNewSlot, setSelectedNewSlot] = useState(null)
+  const [availableSlots, setAvailableSlots] = useState([])
+
+  const fetchStats = useCallback(async () => {
     try {
       const res = await fetch(`${API}/api/analytics/summary`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -250,10 +255,10 @@ export default function Dashboard() {
 
   // Initial fetch + 30-second polling
   useEffect(() => {
-    fetch_()
-    const interval = setInterval(fetch_, 30000)
+    fetchStats()
+    const interval = setInterval(fetchStats, 30000)
     return () => clearInterval(interval)
-  }, [fetch_])
+  }, [fetchStats])
 
   // "X seconds ago" counter
   useEffect(() => {
@@ -262,6 +267,44 @@ export default function Dashboard() {
     }, 1000)
     return () => clearInterval(tick)
   }, [lastUpdated])
+
+  // Load available slots when modal opens
+  useEffect(() => {
+    if (rescheduleModal.open) {
+      fetch(`${API}/api/slots`)
+        .then((r) => r.json())
+        .then((d) => setAvailableSlots(d.slots || []))
+        .catch(() => setAvailableSlots([]))
+    }
+  }, [rescheduleModal.open])
+
+  const handleCancel = async (bookingId) => {
+    if (!window.confirm('Cancel this booking?')) return
+    const res = await fetch(`${API}/api/bookings/${bookingId}/cancel`, { method: 'POST' })
+    if (res.ok) {
+      fetchStats()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      window.alert(err.detail || 'Failed to cancel booking')
+    }
+  }
+
+  const handleReschedule = async (bookingId) => {
+    if (!selectedNewSlot) return
+    const res = await fetch(`${API}/api/bookings/${bookingId}/reschedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_slot_id: selectedNewSlot }),
+    })
+    if (res.ok) {
+      setRescheduleModal({ open: false })
+      setSelectedNewSlot(null)
+      fetchStats()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      window.alert(err.detail || 'Failed to reschedule booking')
+    }
+  }
 
   // Build stat values
   const confirmed = data?.by_status?.find((s) => s.status === 'confirmed')?.count ?? 0
@@ -279,6 +322,15 @@ export default function Dashboard() {
     border: '1px solid var(--border)',
     borderRadius: '12px',
     padding: '20px 24px',
+  }
+
+  const btnBase = {
+    padding: '4px 10px',
+    borderRadius: '6px',
+    background: 'transparent',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 500,
   }
 
   return (
@@ -307,7 +359,7 @@ export default function Dashboard() {
             </span>
           )}
           <button
-            onClick={fetch_}
+            onClick={fetchStats}
             style={{
               padding: '6px 14px',
               borderRadius: '8px',
@@ -370,7 +422,6 @@ export default function Dashboard() {
               </h3>
               <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
                 <DonutChart data={donutData} />
-                {/* Legend */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {donutData.map((d) => (
                     <div key={d.status} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -408,7 +459,7 @@ export default function Dashboard() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                   <thead>
                     <tr>
-                      {['Name', 'Email', 'Slot', 'Status', 'Time'].map((h) => (
+                      {['Name', 'Email', 'Slot', 'Status', 'Time', 'Actions'].map((h) => (
                         <th
                           key={h}
                           style={{
@@ -446,6 +497,28 @@ export default function Dashboard() {
                         <td style={{ padding: '10px 12px', color: 'var(--text-faint)', whiteSpace: 'nowrap' }}>
                           {b.created_at ? new Date(b.created_at).toLocaleString() : '—'}
                         </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          {b.status !== 'cancelled' ? (
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                onClick={() => handleCancel(b.id)}
+                                style={{ ...btnBase, border: '1px solid #ef4444', color: '#ef4444' }}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setRescheduleModal({ open: true, bookingId: b.id, bookingRef: b.ref_id })
+                                }
+                                style={{ ...btnBase, border: '1px solid var(--accent)', color: 'var(--accent)' }}
+                              >
+                                Reschedule
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-faint)', fontSize: '12px' }}>—</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -454,6 +527,111 @@ export default function Dashboard() {
             </div>
           )}
         </>
+      )}
+
+      {/* Reschedule modal */}
+      {rescheduleModal.open && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: '16px',
+              padding: '24px',
+              width: '420px',
+              maxWidth: '90vw',
+            }}
+          >
+            <h3 style={{ margin: '0 0 8px', color: 'var(--text-primary)', fontSize: '16px', fontWeight: 700 }}>
+              Reschedule Booking
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
+              Ref: <strong>{rescheduleModal.bookingRef}</strong> — Select a new slot:
+            </p>
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                maxHeight: '240px',
+                overflowY: 'auto',
+              }}
+            >
+              {availableSlots.length === 0 && (
+                <p style={{ color: 'var(--text-faint)', fontSize: '13px', textAlign: 'center', padding: '16px' }}>
+                  No available slots
+                </p>
+              )}
+              {availableSlots.map((slot) => (
+                <button
+                  key={slot.id}
+                  onClick={() => setSelectedNewSlot(slot.id)}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: `2px solid ${selectedNewSlot === slot.id ? 'var(--accent)' : 'var(--border)'}`,
+                    background: selectedNewSlot === slot.id ? 'var(--accent-soft)' : 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontSize: '14px',
+                    transition: 'border-color 0.15s',
+                  }}
+                >
+                  {slot.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setRescheduleModal({ open: false })
+                  setSelectedNewSlot(null)
+                }}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleReschedule(rescheduleModal.bookingId)}
+                disabled={!selectedNewSlot}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  cursor: selectedNewSlot ? 'pointer' : 'not-allowed',
+                  opacity: selectedNewSlot ? 1 : 0.5,
+                  fontWeight: 600,
+                  fontSize: '14px',
+                }}
+              >
+                Confirm Reschedule
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
