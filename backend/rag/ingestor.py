@@ -93,7 +93,27 @@ async def ingest_all_pdfs() -> Chroma:
         return _vectorstore
 
     all_chunks = []
+
+    # Auto-create the handbook if not present (Azure sample has no HR policies)
+    local_handbook = Path("data/employee_handbook.pdf")
+    if not local_handbook.exists():
+        try:
+            from scripts.create_handbook import create_handbook
+            create_handbook(str(local_handbook))
+            logger.info("Auto-created synthetic Employee Handbook PDF")
+        except Exception as e:
+            logger.warning(f"Could not auto-create handbook: {e}")
+
     for doc_name, url in PDF_URLS.items():
+        if doc_name == "Employee Handbook" and local_handbook.exists():
+            try:
+                chunks = load_and_chunk(local_handbook, doc_name)
+                all_chunks.extend(chunks)
+                logger.info(f"Ingested {len(chunks)} chunks from local {doc_name}")
+            except Exception as e:
+                logger.error(f"Failed to ingest local {doc_name}: {e}")
+            continue
+
         filename = url.split("/")[-1]
         dest = CACHE_DIR / filename
         try:
