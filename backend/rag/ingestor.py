@@ -162,6 +162,23 @@ async def ingest_additional_pdf(pdf_path: Path, doc_name: str) -> dict:
     }
 
 
+def ingest_if_needed():
+    """Re-ingest if ChromaDB collection is empty — used on cold starts (e.g. Render free tier)."""
+    global _vectorstore
+    try:
+        import chromadb
+        client = chromadb.PersistentClient(path=CHROMA_DIR)
+        col = client.get_collection("hr_docs")
+        if col.count() > 0:
+            logger.info(f"ChromaDB already has {col.count()} chunks, skipping ingest")
+            return
+    except Exception:
+        pass
+    logger.info("ChromaDB empty — scheduling re-ingest on startup")
+    import asyncio
+    asyncio.create_task(ingest_all_pdfs())
+
+
 # Alias expected by test runner
 ingest_pdfs = ingest_all_pdfs
 

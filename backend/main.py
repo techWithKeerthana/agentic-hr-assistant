@@ -23,8 +23,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from db.database import (
-    init_db, get_available_slots, get_connection, list_threads, delete_thread,
-    upsert_thread, get_booking_by_thread
+    init_db, get_available_slots, get_connection, execute as db_execute,
+    list_threads, delete_thread, upsert_thread, get_booking_by_thread, _row,
+    DATABASE_URL,
 )
 from graph.graph import get_graph, build_graph, set_graph
 from graph.checkpointer import init_checkpointer
@@ -42,9 +43,10 @@ async def lifespan(app: FastAPI):
     graph = build_graph(checkpointer)
     set_graph(graph)
     logger.info("LangGraph initialized with AsyncSqliteSaver")
-    # Ingest PDFs in background
+    # Ingest PDFs in background (re-ingest if ChromaDB is empty on cold start)
     asyncio.create_task(ingest_all_pdfs())
     yield
+
 
 
 app = FastAPI(title="Agentic HR Assistant", lifespan=lifespan)
@@ -232,15 +234,14 @@ async def register(request: Request, body: RegisterRequest):
     if not valid:
         raise HTTPException(status_code=400, detail=msg)
     conn = get_connection()
-    existing = conn.execute(
-        "SELECT id FROM users WHERE email = ?", (body.email.lower(),)
-    ).fetchone()
+    existing = _row(db_execute(conn, "SELECT id FROM users WHERE email = ?", (body.email.lower(),)).fetchone())
     if existing:
         conn.close()
         raise HTTPException(status_code=400, detail="Email already registered")
     user_id = str(uuid.uuid4())
     try:
-        conn.execute(
+        db_execute(
+            conn,
             "INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, ?)",
             (user_id, body.name, body.email.lower(), hash_password(body.password)),
         )
@@ -258,9 +259,7 @@ async def register(request: Request, body: RegisterRequest):
 @limiter.limit("5/minute")
 async def login(request: Request, body: LoginRequest):
     conn = get_connection()
-    user = conn.execute(
-        "SELECT * FROM users WHERE email = ?", (body.email.lower(),)
-    ).fetchone()
+    user = _row(db_execute(conn, "SELECT * FROM users WHERE email = ?", (body.email.lower(),)).fetchone())
     conn.close()
     if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -413,17 +412,17 @@ async def run_eval():
 @app.get("/api/bookings/{booking_id}")
 async def get_booking_endpoint(booking_id: int):
     conn = get_connection()
-    row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    row = _row(db_execute(conn, "SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone())
     conn.close()
     if not row:
         raise HTTPException(status_code=404, detail="Booking not found")
-    return dict(row)
+    return row
 
 
 @app.post("/api/bookings/{booking_id}/cancel")
 async def cancel_booking_endpoint(booking_id: int):
     conn = get_connection()
-    row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    row = _row(db_execute(conn, "SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone())
     if not row:
         conn.close()
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -431,8 +430,9 @@ async def cancel_booking_endpoint(booking_id: int):
         conn.close()
         raise HTTPException(status_code=400, detail="Already cancelled")
     try:
-        conn.execute("UPDATE slots SET available = 1 WHERE id = ?", (row["slot_id"],))
-        conn.execute(
+        db_execute(conn, "UPDATE slots SET available = 1 WHERE id = ?", (row["slot_id"],))
+        db_execute(
+            conn,
             "UPDATE bookings SET status = 'cancelled', updated_at = ? WHERE id = ?",
             (datetime.now().isoformat(), booking_id),
         )
@@ -451,7 +451,7 @@ async def reschedule_booking_endpoint(booking_id: int, body: dict):
     if not new_slot_id:
         raise HTTPException(status_code=400, detail="new_slot_id required")
     conn = get_connection()
-    booking = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    booking = _row(db_execute(conn, "SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone())
     if not booking:
         conn.close()
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -459,17 +459,19 @@ async def reschedule_booking_endpoint(booking_id: int, body: dict):
         conn.close()
         raise HTTPException(status_code=400, detail="Cannot reschedule cancelled booking")
     now_iso = datetime.now().isoformat()
-    new_slot = conn.execute(
+    new_slot = _row(db_execute(
+        conn,
         "SELECT * FROM slots WHERE id = ? AND available = 1 AND datetime_iso > ?",
         (new_slot_id, now_iso),
-    ).fetchone()
+    ).fetchone())
     if not new_slot:
         conn.close()
         raise HTTPException(status_code=400, detail="Slot not available")
     try:
-        conn.execute("UPDATE slots SET available = 1 WHERE id = ?", (booking["slot_id"],))
-        conn.execute("UPDATE slots SET available = 0 WHERE id = ?", (new_slot_id,))
-        conn.execute(
+        db_execute(conn, "UPDATE slots SET available = 1 WHERE id = ?", (booking["slot_id"],))
+        db_execute(conn, "UPDATE slots SET available = 0 WHERE id = ?", (new_slot_id,))
+        db_execute(
+            conn,
             "UPDATE bookings SET slot_id = ?, slot_label = ?, status = 'confirmed', updated_at = ? WHERE id = ?",
             (new_slot_id, new_slot["label"], datetime.now().isoformat(), booking_id),
         )
@@ -488,52 +490,63 @@ async def get_analytics_summary():
     conn = get_connection()
     now_iso = datetime.now().isoformat()
 
-    total = conn.execute("SELECT COUNT(*) as count FROM bookings").fetchone()["count"]
+    total = _row(db_execute(conn, "SELECT COUNT(*) as count FROM bookings").fetchone())["count"]
 
-    by_status = conn.execute(
-        "SELECT status, COUNT(*) as count FROM bookings GROUP BY status"
-    ).fetchall()
+    by_status = [_row(r) for r in db_execute(
+        conn, "SELECT status, COUNT(*) as count FROM bookings GROUP BY status"
+    ).fetchall()]
 
-    # Extract 24-hour from slot_label like "Monday, Oct 19 - 09:00 AM"
-    # INSTR(slot_label, '- ') finds the dash; +2 = start of time; +8 = AM/PM
-    by_hour = conn.execute("""
-        SELECT
-            CASE
-                WHEN SUBSTR(slot_label, INSTR(slot_label, '- ') + 8, 2) = 'PM'
-                     AND CAST(SUBSTR(slot_label, INSTR(slot_label, '- ') + 2, 2) AS INTEGER) != 12
-                THEN CAST(SUBSTR(slot_label, INSTR(slot_label, '- ') + 2, 2) AS INTEGER) + 12
-                WHEN SUBSTR(slot_label, INSTR(slot_label, '- ') + 8, 2) = 'AM'
-                     AND CAST(SUBSTR(slot_label, INSTR(slot_label, '- ') + 2, 2) AS INTEGER) = 12
-                THEN 0
-                ELSE CAST(SUBSTR(slot_label, INSTR(slot_label, '- ') + 2, 2) AS INTEGER)
-            END as hour,
-            COUNT(*) as count
-        FROM bookings
-        WHERE slot_label IS NOT NULL AND slot_label LIKE '%- %'
-        GROUP BY hour
-        ORDER BY hour
-    """).fetchall()
+    # Hour extraction differs between SQLite (INSTR/SUBSTR) and PostgreSQL
+    if DATABASE_URL:
+        by_hour = [_row(r) for r in db_execute(conn, """
+            SELECT
+                EXTRACT(HOUR FROM created_at)::INT as hour,
+                COUNT(*) as count
+            FROM bookings
+            WHERE created_at IS NOT NULL
+            GROUP BY hour
+            ORDER BY hour
+        """).fetchall()]
+    else:
+        by_hour = [_row(r) for r in db_execute(conn, """
+            SELECT
+                CASE
+                    WHEN SUBSTR(slot_label, INSTR(slot_label, '- ') + 8, 2) = 'PM'
+                         AND CAST(SUBSTR(slot_label, INSTR(slot_label, '- ') + 2, 2) AS INTEGER) != 12
+                    THEN CAST(SUBSTR(slot_label, INSTR(slot_label, '- ') + 2, 2) AS INTEGER) + 12
+                    WHEN SUBSTR(slot_label, INSTR(slot_label, '- ') + 8, 2) = 'AM'
+                         AND CAST(SUBSTR(slot_label, INSTR(slot_label, '- ') + 2, 2) AS INTEGER) = 12
+                    THEN 0
+                    ELSE CAST(SUBSTR(slot_label, INSTR(slot_label, '- ') + 2, 2) AS INTEGER)
+                END as hour,
+                COUNT(*) as count
+            FROM bookings
+            WHERE slot_label IS NOT NULL AND slot_label LIKE '%- %'
+            GROUP BY hour
+            ORDER BY hour
+        """).fetchall()]
 
-    recent = conn.execute("""
+    recent = [_row(r) for r in db_execute(conn, """
         SELECT id, ref_id, name, email, slot_label, status, created_at
         FROM bookings
         ORDER BY created_at DESC
         LIMIT 5
-    """).fetchall()
+    """).fetchall()]
 
-    available_slots = conn.execute(
+    available_slots = _row(db_execute(
+        conn,
         "SELECT COUNT(*) as count FROM slots WHERE available = 1 AND datetime_iso > ?",
-        (now_iso,)
-    ).fetchone()["count"]
+        (now_iso,),
+    ).fetchone())["count"]
 
     conn.close()
 
     return {
         "total_bookings": total,
         "available_slots": available_slots,
-        "by_status": [dict(r) for r in by_status],
-        "by_hour": [dict(r) for r in by_hour],
-        "recent_bookings": [dict(r) for r in recent],
+        "by_status": by_status,
+        "by_hour": by_hour,
+        "recent_bookings": recent,
     }
 
 
