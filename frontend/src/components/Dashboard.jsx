@@ -192,42 +192,40 @@ function StatusBadge({ status }) {
 
 // ── Empty State ───────────────────────────────────────────────────────────────
 
-function EmptyState() {
+function EmptyState({ onGoToChat }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '16px',
-        padding: '48px',
-        color: 'var(--text-faint)',
-        textAlign: 'center',
-      }}
-    >
-      <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-        <rect x="8" y="16" width="64" height="52" rx="8" stroke="var(--border)" strokeWidth="2" />
-        <rect x="8" y="16" width="64" height="14" rx="8" fill="var(--accent)" opacity="0.15" />
-        <line x1="20" y1="44" x2="40" y2="44" stroke="var(--border)" strokeWidth="2" strokeLinecap="round" />
-        <line x1="20" y1="54" x2="56" y2="54" stroke="var(--border)" strokeWidth="2" strokeLinecap="round" />
-        <circle cx="60" cy="56" r="12" fill="var(--bg-card)" stroke="var(--border)" strokeWidth="2" />
-        <line x1="60" y1="51" x2="60" y2="57" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-        <line x1="57" y1="57" x2="63" y2="57" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-      <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', padding: '60px 24px', textAlign: 'center',
+    }}>
+      <div style={{ fontSize: '56px', marginBottom: '20px', lineHeight: 1 }}>📊</div>
+      <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
         No bookings yet
-      </div>
-      <div style={{ fontSize: '13px', maxWidth: '280px' }}>
-        Start a conversation to book your first HR appointment. Stats will appear here.
-      </div>
+      </h3>
+      <p style={{ margin: '0 0 28px', fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '300px', lineHeight: 1.6 }}>
+        Book your first HR appointment through the chat. Stats and analytics will appear here automatically.
+      </p>
+      <button
+        onClick={onGoToChat}
+        style={{
+          padding: '11px 24px', borderRadius: '12px', border: 'none',
+          background: 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
+          color: '#fff', fontWeight: 600, fontSize: '14px', cursor: 'pointer',
+          boxShadow: '0 4px 16px rgba(91,76,245,0.35)',
+          transition: 'transform 0.15s, box-shadow 0.15s', fontFamily: 'inherit',
+        }}
+        onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(91,76,245,0.45)' }}
+        onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(91,76,245,0.35)' }}
+      >
+        💬 Start a conversation
+      </button>
     </div>
   )
 }
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 
-export default function Dashboard() {
+export default function Dashboard({ setActiveTab }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -402,7 +400,7 @@ export default function Dashboard() {
       )}
 
       {/* Empty state */}
-      {!loading && !error && data?.total_bookings === 0 && <EmptyState />}
+      {!loading && !error && data?.total_bookings === 0 && <EmptyState onGoToChat={() => setActiveTab?.('chat')} />}
 
       {/* Content */}
       {!loading && !error && data !== null && (

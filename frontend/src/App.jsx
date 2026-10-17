@@ -36,7 +36,15 @@ export default function App() {
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem('hr-theme') || 'system' } catch { return 'system' }
   })
+  const [toast, setToast] = useState(null)
+  const toastTimerRef = useRef(null)
   const dropdownRef = useRef(null)
+
+  const showToast = (message, type = 'success') => {
+    clearTimeout(toastTimerRef.current)
+    setToast({ message, type })
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000)
+  }
   const ssState = useSSE()
   const { threads, activeThreadId, createThread, selectThread, deleteThread, refreshThreads } = useThread()
 
@@ -282,13 +290,43 @@ export default function App() {
               ssState={ssState}
               onThreadUpdated={refreshThreads}
               userName={user.name}
+              showToast={showToast}
             />
           )}
-          {activeTab === 'dashboard' && <Dashboard />}
+          {activeTab === 'dashboard' && <Dashboard setActiveTab={setActiveTab} showToast={showToast} />}
           {activeTab === 'eval' && <EvalDashboard />}
           {activeTab === 'docs' && <DocPanel />}
         </div>
       </div>
+
+      {/* ── Toast notifications ── */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: '28px', left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          animation: 'slideUp 0.25s ease forwards',
+          pointerEvents: 'none',
+        }}>
+          <div style={{
+            padding: '10px 20px',
+            borderRadius: '99px',
+            background: toast.type === 'error'
+              ? 'rgba(239,68,68,0.95)'
+              : toast.type === 'warning'
+              ? 'rgba(245,158,11,0.95)'
+              : 'rgba(16,185,129,0.95)',
+            color: '#fff',
+            fontSize: '13px',
+            fontWeight: 600,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+            display: 'flex', alignItems: 'center', gap: '8px',
+            whiteSpace: 'nowrap',
+          }}>
+            {toast.type === 'error' ? '✕' : toast.type === 'warning' ? '⚠️' : '✓'} {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -111,11 +111,11 @@ input:focus, textarea:focus {
 
 /* ── Animations ──────────────────────────────────────────────────────── */
 
-@keyframes pulse-dot {
-  0%, 80%, 100% { opacity: 0; }
-  40% { opacity: 1; }
+@keyframes typingDot {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.3; }
+  40%           { transform: translateY(-6px); opacity: 1; }
 }
-.typing-dot { animation: pulse-dot 1.4s infinite ease-in-out; }
+.typing-dot { animation: typingDot 1.2s infinite ease-in-out; }
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
@@ -147,4 +147,9 @@ input:focus, textarea:focus {
 @keyframes micPulse {
   0%, 100% { box-shadow: 0 0 0 3px rgba(239,68,68,0.25); }
   50%       { box-shadow: 0 0 0 8px rgba(239,68,68,0.05); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px) translateX(-50%); }
+  to   { opacity: 1; transform: translateY(0)    translateX(-50%); }
 }

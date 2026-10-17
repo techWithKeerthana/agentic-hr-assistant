@@ -22,6 +22,12 @@ const SUGGESTION_CHIPS = [
   '📅 Book an HR appointment',
 ]
 
+function formatTime(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
 function cleanTextForSpeech(text) {
   return text
     .replace(/\*\*(.*?)\*\*/g, '$1')
@@ -44,7 +50,7 @@ function TypingIndicator() {
   )
 }
 
-function MessageBubble({ message, onSlotSelect, onCancel, onConfirm }) {
+function MessageBubble({ message, onSlotSelect, onCancel, onConfirm, showToast }) {
   const isUser = message.role === 'user'
   const [hovered, setHovered] = useState(false)
   const [speaking, setSpeaking] = useState(false)
@@ -73,6 +79,7 @@ function MessageBubble({ message, onSlotSelect, onCancel, onConfirm }) {
   const copyMessage = () => {
     navigator.clipboard.writeText(message.content).then(() => {
       setCopied(true)
+      if (showToast) showToast('Message copied!', 'success')
       setTimeout(() => setCopied(false), 1500)
     })
   }
@@ -122,6 +129,19 @@ function MessageBubble({ message, onSlotSelect, onCancel, onConfirm }) {
           }>
             {message.content}
           </div>
+
+          {/* Timestamp — hover reveal on both sides */}
+          {message.timestamp && (
+            <div style={{
+              position: 'absolute', bottom: '-20px',
+              [isUser ? 'right' : 'left']: '4px',
+              fontSize: '11px', color: 'var(--text-muted)',
+              opacity: hovered ? 1 : 0, transition: 'opacity 0.2s',
+              pointerEvents: 'none', whiteSpace: 'nowrap',
+            }}>
+              {formatTime(message.timestamp)}
+            </div>
+          )}
 
           {/* Action bar — hover reveal on assistant messages */}
           {!isUser && hovered && (
@@ -184,7 +204,7 @@ function MessageBubble({ message, onSlotSelect, onCancel, onConfirm }) {
   )
 }
 
-export default function ChatWindow({ threadId, onThreadUpdated, ssState, userName }) {
+export default function ChatWindow({ threadId, onThreadUpdated, ssState, userName, showToast }) {
   const {
     sendMessage, isStreaming, tokens, nodeEvents, citations,
     bookingCard, bookingConfirmed, error, doneData, reset,
@@ -264,8 +284,10 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState, userNam
           citations: currentCitations,
           bookingCard: finalCard,
           abstained: content.includes("doesn't contain enough information"),
+          timestamp: Date.now(),
         },
       ])
+      if (bookingConfirmed && showToast) showToast('Booking confirmed!', 'success')
     }
     setStreamingContent('')
     setCurrentCitations([])
@@ -319,7 +341,7 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState, userNam
     setMessages(prev => {
       const recentDup = prev.some(m => m.role === 'user' && m.content === msg && now - (m._ts || 0) < 2000)
       if (recentDup) return prev
-      return [...prev, { role: 'user', content: msg, _ts: now }]
+      return [...prev, { role: 'user', content: msg, _ts: now, timestamp: now }]
     })
     const tid = threadId || `t-${Date.now()}`
     await sendMessage(msg, tid)
@@ -339,7 +361,7 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState, userNam
     setCurrentCitations([])
     setCurrentBookingCard(null)
     setShownFollowUps([])
-    setMessages(prev => [...prev, { role: 'user', content: msg, _ts: Date.now() }])
+    setMessages(prev => [...prev, { role: 'user', content: msg, _ts: Date.now(), timestamp: Date.now() }])
     await sendMessage(msg, threadId)
   }
 
@@ -349,14 +371,14 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState, userNam
     setCurrentCitations([])
     setCurrentBookingCard(null)
     setShownFollowUps([])
-    setMessages(prev => [...prev, { role: 'user', content: 'Yes, confirm', _ts: Date.now() }])
+    setMessages(prev => [...prev, { role: 'user', content: 'Yes, confirm', _ts: Date.now(), timestamp: Date.now() }])
     await sendMessage('Yes, confirm', threadId)
   }
 
   const handleCancelBooking = async () => {
     setCurrentNodeEvents([])
     setShownFollowUps([])
-    setMessages(prev => [...prev, { role: 'user', content: 'cancel', _ts: Date.now() }])
+    setMessages(prev => [...prev, { role: 'user', content: 'cancel', _ts: Date.now(), timestamp: Date.now() }])
     await sendMessage('cancel', threadId)
   }
 
@@ -544,6 +566,7 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState, userNam
                   onSlotSelect={handleSlotSelect}
                   onCancel={handleCancelBooking}
                   onConfirm={handleConfirmBooking}
+                  showToast={showToast}
                 />
               ))}
 

@@ -2,6 +2,19 @@ import { useState } from 'react'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
+function timeAgo(ts) {
+  if (!ts) return ''
+  const secs = Math.floor((Date.now() - new Date(ts).getTime()) / 1000)
+  if (secs < 60) return 'just now'
+  const mins = Math.floor(secs / 60)
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  return new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
 export default function ThreadSidebar({ threads, activeThreadId, onNew, onSelect, onDelete, onRename }) {
   const [editingId, setEditingId] = useState(null)
   const [editValue, setEditValue] = useState('')
@@ -94,9 +107,16 @@ export default function ThreadSidebar({ threads, activeThreadId, onNew, onSelect
                   onClick={e => e.stopPropagation()}
                 />
               ) : (
-                <span style={{ flex: 1, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                  {thread.title || 'New Conversation'}
-                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isActive ? 600 : 400 }}>
+                    {thread.title || 'New Conversation'}
+                  </div>
+                  {thread.updated_at && (
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '1px' }}>
+                      {timeAgo(thread.updated_at)}
+                    </div>
+                  )}
+                </div>
               )}
 
               {(hoveredId === thread.id || editingId === thread.id) && (
