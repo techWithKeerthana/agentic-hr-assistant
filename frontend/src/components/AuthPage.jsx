@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { API_URL as API } from '../config'
 
 const labelStyle = {
@@ -51,6 +51,42 @@ export default function AuthPage({ onLogin }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Backend wake-up state
+  const [serverReady, setServerReady] = useState(false)
+  const [serverBanner, setServerBanner] = useState('Connecting to server...')
+  const retryRef = useRef(0)
+  const timerRef = useRef(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const checkHealth = async () => {
+      try {
+        const res = await fetch(`${API}/api/health`, { signal: AbortSignal.timeout(8000) })
+        if (res.ok && !cancelled) {
+          setServerReady(true)
+          setServerBanner('')
+          return
+        }
+      } catch { /* timeout or network error */ }
+
+      if (cancelled) return
+      retryRef.current += 1
+
+      if (retryRef.current >= 6) {
+        setServerBanner('Server is starting up, please wait...')
+        return
+      }
+      timerRef.current = setTimeout(checkHealth, 5000)
+    }
+
+    checkHealth()
+    return () => {
+      cancelled = true
+      clearTimeout(timerRef.current)
+    }
+  }, [])
+
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
   const switchMode = (m) => {
@@ -64,6 +100,7 @@ export default function AuthPage({ onLogin }) {
   const passwordsMatch = form.password === confirmPassword
 
   const isSubmitDisabled = loading
+    || !serverReady
     || (mode === 'register' && strength.score < 4)
     || (mode === 'register' && !!confirmPassword && !passwordsMatch)
 
@@ -129,6 +166,27 @@ export default function AuthPage({ onLogin }) {
         boxShadow: '0 24px 80px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)',
         position: 'relative', zIndex: 1,
       }}>
+        {/* Server wake-up banner */}
+        {!serverReady && (
+          <div style={{
+            marginBottom: '20px', padding: '10px 14px',
+            borderRadius: '10px',
+            background: serverBanner.includes('starting') ? 'rgba(245,158,11,0.1)' : 'rgba(91,76,245,0.08)',
+            border: `1px solid ${serverBanner.includes('starting') ? 'rgba(245,158,11,0.3)' : 'rgba(91,76,245,0.2)'}`,
+            display: 'flex', alignItems: 'center', gap: '10px',
+            fontSize: '13px',
+            color: serverBanner.includes('starting') ? '#f59e0b' : 'var(--accent-fg)',
+          }}>
+            <span style={{
+              display: 'inline-block', width: '14px', height: '14px',
+              border: `2px solid currentColor`, borderTopColor: 'transparent',
+              borderRadius: '50%', flexShrink: 0,
+              animation: 'spin 0.8s linear infinite',
+            }} />
+            {serverBanner}
+          </div>
+        )}
+
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{
