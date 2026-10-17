@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { MessageSquare, BarChart3, FileText, PieChart } from 'lucide-react'
 import ThreadSidebar from './components/ThreadSidebar'
 import ChatWindow from './components/ChatWindow'
@@ -6,6 +6,7 @@ import EvalDashboard from './components/EvalDashboard'
 import DocPanel from './components/DocPanel'
 import Dashboard from './components/Dashboard'
 import ThemeToggle from './components/ThemeToggle'
+import AuthPage from './components/AuthPage'
 import { useSSE } from './hooks/useSSE'
 import { useThread } from './hooks/useThread'
 
@@ -17,11 +18,33 @@ const TABS = [
 ]
 
 export default function App() {
+  const [user, setUser] = useState(null)
+  const [authChecked, setAuthChecked] = useState(false)
   const [activeTab, setActiveTab] = useState('chat')
   const ssState = useSSE()
   const {
     threads, activeThreadId, createThread, selectThread, deleteThread, refreshThreads
   } = useThread()
+
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('hr_user')
+      const token = localStorage.getItem('hr_token')
+      if (stored && token) setUser(JSON.parse(stored))
+    } catch {
+      // ignore parse errors
+    }
+    setAuthChecked(true)
+  }, [])
+
+  const handleLogin = (userData) => setUser(userData)
+
+  const handleLogout = () => {
+    localStorage.removeItem('hr_token')
+    localStorage.removeItem('hr_user')
+    setUser(null)
+  }
 
   const handleNewThread = () => {
     const id = createThread()
@@ -35,6 +58,12 @@ export default function App() {
     ssState.reset()
     setActiveTab('chat')
   }
+
+  // Prevent flash while checking localStorage
+  if (!authChecked) return null
+
+  // Show login/register page when not authenticated
+  if (!user) return <AuthPage onLogin={handleLogin} />
 
   return (
     <div
@@ -79,7 +108,26 @@ export default function App() {
               )
             })}
           </div>
-          <div className="pb-2">
+
+          {/* Right side: user name + logout + theme */}
+          <div className="flex items-center gap-3 pb-2">
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              👤 {user.name}
+            </span>
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: '4px 12px',
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Sign out
+            </button>
             <ThemeToggle />
           </div>
         </div>
@@ -91,6 +139,7 @@ export default function App() {
               threadId={activeThreadId}
               ssState={ssState}
               onThreadUpdated={refreshThreads}
+              userName={user.name}
             />
           )}
           {activeTab === 'dashboard' && <Dashboard />}

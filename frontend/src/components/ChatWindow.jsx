@@ -62,7 +62,7 @@ function MessageBubble({ message, onSlotSelect, onCancel, onConfirm }) {
   )
 }
 
-export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
+export default function ChatWindow({ threadId, onThreadUpdated, ssState, userName }) {
   const {
     sendMessage, isStreaming, tokens, nodeEvents, citations,
     bookingCard, bookingConfirmed, error, doneData, reset,
@@ -225,7 +225,9 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState }) {
               <Bot size={32} className="text-indigo-400" />
             </div>
             <div>
-              <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Ask about HR policies or book an appointment</p>
+              <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
+                {userName ? `Hello ${userName}! 👋 How can I help you today?` : 'Ask about HR policies or book an appointment'}
+              </p>
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Try: "How often are performance reviews conducted?" or "Book a meeting"</p>
             </div>
           </div>

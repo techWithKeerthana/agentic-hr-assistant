@@ -7,7 +7,7 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Header
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -26,6 +26,7 @@ from graph.graph import get_graph, build_graph, set_graph
 from graph.checkpointer import init_checkpointer
 from rag.ingestor import ingest_all_pdfs, ingest_additional_pdf, get_doc_stats
 from security.guardrails import check_injection, sanitize_input
+from auth.auth import hash_password, verify_password, create_token, decode_token
 
 
 @asynccontextmanager
@@ -185,6 +186,72 @@ async def stream_graph_response(message: str, thread_id: str):
         logger.error(f"Graph stream error: {e}")
         yield sse_event("error", {"message": "An error occurred. Please try again."})
         yield sse_event("done", {"thread_id": thread_id, "ref_id": None})
+
+
+class RegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/api/auth/register")
+async def register(body: RegisterRequest):
+    if len(body.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    conn = get_connection()
+    existing = conn.execute(
+        "SELECT id FROM users WHERE email = ?", (body.email.lower(),)
+    ).fetchone()
+    if existing:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Email already registered")
+    user_id = str(uuid.uuid4())
+    try:
+        conn.execute(
+            "INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+            (user_id, body.name, body.email.lower(), hash_password(body.password)),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(status_code=500, detail="Could not create account")
+    conn.close()
+    token = create_token({"user_id": user_id, "email": body.email.lower(), "name": body.name})
+    return {"token": token, "name": body.name, "email": body.email.lower()}
+
+
+@app.post("/api/auth/login")
+async def login(body: LoginRequest):
+    conn = get_connection()
+    user = conn.execute(
+        "SELECT * FROM users WHERE email = ?", (body.email.lower(),)
+    ).fetchone()
+    conn.close()
+    if not user or not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = create_token({
+        "user_id": user["id"],
+        "email": user["email"],
+        "name": user["name"],
+    })
+    return {"token": token, "name": user["name"], "email": user["email"]}
+
+
+@app.get("/api/auth/me")
+async def get_me(authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = decode_token(authorization.split(" ")[1])
+        return {"name": payload["name"], "email": payload["email"]}
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 
 @app.post("/api/chat")
