@@ -1,13 +1,13 @@
 ﻿import os
 import re
-import random
+import uuid
 import logging
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 from graph.state import AgentState
 from db.database import (
     get_available_slots, is_slot_available, create_booking,
-    get_booking_by_thread, cancel_booking
+    get_booking_by_thread, cancel_booking, get_connection
 )
 from security.guardrails import validate_email
 
@@ -23,7 +23,20 @@ def get_llm():
 
 
 def _generate_ref_id() -> str:
-    return f"#REV-{random.randint(1000, 9999)}"
+    """UUID-based ref ID — no collision risk."""
+    return f"REV-{uuid.uuid4().hex[:8].upper()}"
+
+
+def _get_slot_label(slot_id: str) -> str:
+    """Look up slot label directly from DB (works even if slot is now unavailable)."""
+    try:
+        conn = get_connection()
+        row = conn.execute("SELECT label FROM slots WHERE id = ?", (slot_id,)).fetchone()
+        conn.close()
+        return row["label"] if row else slot_id
+    except Exception as e:
+        logger.warning(f"Slot label lookup failed for {slot_id}: {e}")
+        return slot_id
 
 
 def _extract_name_email(text: str, llm) -> tuple[str | None, str | None]:
@@ -247,8 +260,7 @@ def booking_node(state: AgentState) -> AgentState:
             }
 
         ref_id = _generate_ref_id()
-        slots_list = get_available_slots()
-        slot_label = next((s["label"] for s in slots_list if s["id"] == slot_id), slot_id)
+        slot_label = _get_slot_label(slot_id)
         try:
             create_booking(
                 ref_id=ref_id,
@@ -259,7 +271,8 @@ def booking_node(state: AgentState) -> AgentState:
                 thread_id=thread_id,
             )
         except Exception as e:
-            logger.error(f"Booking creation failed: {e}")
+            import traceback
+            logger.error(f"Booking creation failed: {e}\n{traceback.format_exc()}")
             answer = "An error occurred creating your booking. Please try again."
             return {
                 **state,

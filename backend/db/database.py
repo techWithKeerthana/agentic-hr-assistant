@@ -77,13 +77,35 @@ def _seed_slots(cur: sqlite3.Cursor, conn: sqlite3.Connection):
 
 
 def get_available_slots() -> list[dict]:
+    """Return future available slots, refreshing the table if all slots are in the past."""
     conn = get_connection()
     cur = conn.cursor()
+    now_iso = datetime.now().isoformat()
     cur.execute(
-        "SELECT id, label, available, datetime_iso FROM slots WHERE available = 1 ORDER BY datetime_iso LIMIT 10"
+        "SELECT id, label, available, datetime_iso FROM slots WHERE available = 1 AND datetime_iso > ? ORDER BY datetime_iso LIMIT 10",
+        (now_iso,),
     )
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
+
+    if not rows:
+        # All slots expired — clear and re-seed with fresh future dates
+        conn2 = get_connection()
+        conn2.execute("DELETE FROM slots")
+        conn2.commit()
+        _seed_slots(conn2.cursor(), conn2)
+        conn2.close()
+        # Re-query
+        conn3 = get_connection()
+        cur3 = conn3.cursor()
+        now_iso = datetime.now().isoformat()
+        cur3.execute(
+            "SELECT id, label, available, datetime_iso FROM slots WHERE available = 1 AND datetime_iso > ? ORDER BY datetime_iso LIMIT 10",
+            (now_iso,),
+        )
+        rows = [dict(r) for r in cur3.fetchall()]
+        conn3.close()
+
     return rows
 
 
@@ -99,22 +121,32 @@ def mark_slot_unavailable(slot_id: str):
 def is_slot_available(slot_id: str) -> bool:
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT available FROM slots WHERE id = ?", (slot_id,))
+    now_iso = datetime.now().isoformat()
+    cur.execute(
+        "SELECT available FROM slots WHERE id = ? AND datetime_iso > ?",
+        (slot_id, now_iso),
+    )
     row = cur.fetchone()
     conn.close()
     return bool(row and row["available"])
 
 
 def create_booking(ref_id: str, name: str, email: str, slot_id: str, slot_label: str, thread_id: str) -> dict:
+    """Create a booking and mark slot unavailable in a single transaction (avoids SQLite locking)."""
     conn = get_connection()
     now = datetime.now().isoformat()
-    conn.execute(
-        """INSERT INTO bookings (ref_id, name, email, slot_id, slot_label, status, thread_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, 'confirmed', ?, ?, ?)""",
-        (ref_id, name, email, slot_id, slot_label, thread_id, now, now)
-    )
-    mark_slot_unavailable(slot_id)
-    conn.commit()
+    try:
+        conn.execute(
+            """INSERT INTO bookings (ref_id, name, email, slot_id, slot_label, status, thread_id, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, 'confirmed', ?, ?, ?)""",
+            (ref_id, name, email, slot_id, slot_label, thread_id, now, now),
+        )
+        # Mark slot unavailable in the SAME connection to avoid "database is locked"
+        conn.execute("UPDATE slots SET available = 0 WHERE id = ?", (slot_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     cur = conn.cursor()
     cur.execute("SELECT * FROM bookings WHERE ref_id = ?", (ref_id,))
     row = dict(cur.fetchone())
