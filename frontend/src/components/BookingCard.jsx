@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Calendar, CheckCircle2, X, RotateCcw, Clock } from 'lucide-react'
 
 export default function BookingCard({ bookingData, onSlotSelect, onCancel, onConfirm }) {
   const [selectedSlot, setSelectedSlot] = useState(bookingData?.selected_slot || null)
@@ -24,68 +23,82 @@ export default function BookingCard({ bookingData, onSlotSelect, onCancel, onCon
 
   if (status === 'confirmed') {
     return (
-      <div className="rounded-xl p-4 mt-2 border" style={{ backgroundColor: 'rgba(52,211,153,0.08)', borderColor: 'rgba(52,211,153,0.4)' }}>
-        <div className="flex items-center gap-2 mb-2">
-          <CheckCircle2 size={20} className="text-emerald-400" />
-          <span className="font-semibold text-emerald-300">Booking Confirmed!</span>
+      <div style={{
+        borderRadius: '16px', padding: '16px', marginTop: '8px',
+        background: 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(5,150,105,0.06))',
+        border: '1px solid rgba(16,185,129,0.35)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+          <span style={{ fontSize: '18px' }}>✅</span>
+          <span style={{ fontWeight: 700, color: '#34d399', fontSize: '14px' }}>Booking Confirmed!</span>
         </div>
-        <p className="text-sm mb-1" style={{ color: 'var(--text-primary)' }}>
-          <span style={{ color: 'var(--text-secondary)' }}>Reference:</span>{' '}
-          <code className="text-emerald-400 font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(52,211,153,0.1)' }}>
-            {ref_id}
-          </code>
+        <p style={{ fontSize: '13px', marginBottom: '4px', color: 'var(--text-primary)' }}>
+          <span style={{ color: 'var(--text-secondary)' }}>Reference: </span>
+          <code style={{ color: '#34d399', fontFamily: 'monospace', background: 'rgba(52,211,153,0.1)', padding: '2px 6px', borderRadius: '4px' }}>{ref_id}</code>
         </p>
         {slot_label && (
-          <p className="text-sm" style={{ color: 'var(--text-primary)' }}>
-            <span style={{ color: 'var(--text-secondary)' }}>Slot:</span> {slot_label}
+          <p style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Slot: </span>{slot_label}
           </p>
         )}
       </div>
     )
   }
 
+  const btnBase = { border: 'none', fontFamily: 'inherit', cursor: 'pointer', fontWeight: 600, fontSize: '13px', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px' }
+
   return (
-    <div className="rounded-xl p-4 mt-2 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Calendar size={18} className="text-indigo-400" />
-          <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Schedule Appointment</span>
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(91,76,245,0.08), rgba(139,92,246,0.04))',
+      border: '1px solid rgba(91,76,245,0.25)',
+      borderRadius: '20px', padding: '20px', marginTop: '8px',
+      boxShadow: '0 4px 24px rgba(91,76,245,0.1)',
+    }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '36px', height: '36px',
+            background: 'linear-gradient(135deg, #5b4cf5, #8b5cf6)',
+            borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px',
+          }}>📅</div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>Book HR Appointment</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Select an available slot</div>
+          </div>
         </div>
         {status === 'pending_confirmation' && (
-          <span className="text-xs px-2 py-0.5 rounded-full border" style={{ backgroundColor: 'rgba(251,191,36,0.1)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.3)' }}>
-            Pending Confirmation
+          <span style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '99px', background: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)', fontWeight: 600 }}>
+            Pending
           </span>
         )}
       </div>
 
       {(name || email) && (
-        <div className="text-xs mb-3 space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
-          {name && <p><span style={{ color: 'var(--text-faint)' }}>Name:</span> {name}</p>}
-          {email && <p><span style={{ color: 'var(--text-faint)' }}>Email:</span> {email}</p>}
+        <div style={{ fontSize: '12px', marginBottom: '14px', color: 'var(--text-secondary)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {name && <span><span style={{ color: 'var(--text-muted)' }}>Name: </span>{name}</span>}
+          {email && <span><span style={{ color: 'var(--text-muted)' }}>Email: </span>{email}</span>}
         </div>
       )}
 
       {status !== 'pending_confirmation' && slots.length > 0 && (
-        <div className="space-y-2 mb-3">
-          <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Available Slots:</p>
-          <div className="grid gap-2">
+        <div style={{ marginBottom: '14px' }}>
+          <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Available Slots</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {slots.map(slot => (
-              <button
-                key={slot.id}
-                onClick={() => setSelectedSlot(slot.id)}
-                disabled={!slot.available}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all border"
-                style={
-                  selectedSlot === slot.id
-                    ? { backgroundColor: '#4f46e5', borderColor: '#6366f1', color: '#ffffff' }
-                    : slot.available
-                    ? { backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }
-                    : { backgroundColor: 'var(--bg-input)', borderColor: 'var(--border)', color: 'var(--text-faint)', cursor: 'not-allowed' }
-                }
-              >
-                <Clock size={14} />
-                {slot.label}
-                {!slot.available && <span className="ml-auto text-xs" style={{ color: 'var(--text-faint)' }}>Taken</span>}
+              <button key={slot.id} onClick={() => slot.available && setSelectedSlot(slot.id)} disabled={!slot.available} style={{
+                ...btnBase,
+                padding: '10px 14px', borderRadius: '10px',
+                border: `1.5px solid ${selectedSlot === slot.id ? '#5b4cf5' : 'var(--border)'}`,
+                background: selectedSlot === slot.id
+                  ? 'linear-gradient(135deg, rgba(91,76,245,0.2), rgba(139,92,246,0.1))'
+                  : 'var(--bg-secondary)',
+                color: !slot.available ? 'var(--text-muted)' : selectedSlot === slot.id ? 'var(--accent-fg)' : 'var(--text-primary)',
+                cursor: slot.available ? 'pointer' : 'not-allowed',
+                boxShadow: selectedSlot === slot.id ? '0 0 0 3px rgba(91,76,245,0.15)' : 'none',
+              }}>
+                🕐 {slot.label}
+                {!slot.available && <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-muted)' }}>Taken</span>}
               </button>
             ))}
           </div>
@@ -93,66 +106,42 @@ export default function BookingCard({ bookingData, onSlotSelect, onCancel, onCon
       )}
 
       {status === 'pending_confirmation' && (
-        <div className="text-sm rounded-lg p-3 mb-3" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
-          <p className="font-medium mb-1" style={{ color: 'var(--text-primary)' }}>Confirm your booking?</p>
-          {slot_label && <p style={{ color: 'var(--text-secondary)' }}><span style={{ color: 'var(--text-faint)' }}>Slot:</span> {slot_label}</p>}
+        <div style={{ fontSize: '13px', borderRadius: '12px', padding: '12px 14px', marginBottom: '14px', background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+          <p style={{ fontWeight: 600, marginBottom: '4px', color: 'var(--text-primary)' }}>Confirm your booking?</p>
+          {slot_label && <p style={{ color: 'var(--text-secondary)' }}><span style={{ color: 'var(--text-muted)' }}>Slot: </span>{slot_label}</p>}
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div style={{ display: 'flex', gap: '8px' }}>
         {status === 'pending_confirmation' ? (
           <>
-            <button
-              onClick={handleFinalConfirm}
-              disabled={submitting}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
-              style={submitting ? { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)' } : undefined}
-            >
-              {submitting ? (
-                <span className="flex gap-1">
-                  <span className="w-1.5 h-1.5 bg-white rounded-full typing-dot" />
-                  <span className="w-1.5 h-1.5 bg-white rounded-full typing-dot" />
-                  <span className="w-1.5 h-1.5 bg-white rounded-full typing-dot" />
-                </span>
-              ) : (
-                <><CheckCircle2 size={15} />Yes, Confirm Booking</>
-              )}
+            <button onClick={handleFinalConfirm} disabled={submitting} style={{
+              ...btnBase, flex: 1, padding: '10px 16px', borderRadius: '10px', justifyContent: 'center',
+              background: submitting ? 'var(--bg-hover)' : 'linear-gradient(135deg, #059669, #10b981)',
+              color: submitting ? 'var(--text-muted)' : '#fff',
+              boxShadow: submitting ? 'none' : '0 2px 10px rgba(16,185,129,0.3)',
+            }}>
+              {submitting ? '⏳' : '✅'} Yes, Confirm
             </button>
-            <button
-              onClick={() => onSlotSelect('__reschedule__')}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors"
-              style={{ backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
-            >
-              <RotateCcw size={14} />
-              Reschedule
-            </button>
+            <button onClick={() => onSlotSelect('__reschedule__')} style={{
+              ...btnBase, padding: '10px 14px', borderRadius: '10px',
+              background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)',
+            }}>🔄 Reschedule</button>
           </>
         ) : (
-          <button
-            onClick={handleSelectAndConfirm}
-            disabled={!selectedSlot || submitting}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
-            style={(!selectedSlot || submitting) ? { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)' } : undefined}
-          >
-            {submitting ? (
-              <span className="flex gap-1">
-                <span className="w-1.5 h-1.5 bg-white rounded-full typing-dot" />
-                <span className="w-1.5 h-1.5 bg-white rounded-full typing-dot" />
-                <span className="w-1.5 h-1.5 bg-white rounded-full typing-dot" />
-              </span>
-            ) : (
-              <><CheckCircle2 size={15} />Confirm Booking</>
-            )}
+          <button onClick={handleSelectAndConfirm} disabled={!selectedSlot || submitting} style={{
+            ...btnBase, flex: 1, padding: '10px 16px', borderRadius: '10px', justifyContent: 'center',
+            background: (!selectedSlot || submitting) ? 'var(--bg-hover)' : 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
+            color: (!selectedSlot || submitting) ? 'var(--text-muted)' : '#fff',
+            boxShadow: (!selectedSlot || submitting) ? 'none' : '0 2px 10px rgba(91,76,245,0.3)',
+          }}>
+            {submitting ? '⏳' : '✅'} Confirm Booking
           </button>
         )}
-        <button
-          onClick={onCancel}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors border"
-          style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', borderColor: 'var(--border)' }}
-        >
-          <X size={14} />
-          Cancel
-        </button>
+        <button onClick={onCancel} style={{
+          ...btnBase, padding: '10px 14px', borderRadius: '10px',
+          background: 'var(--bg-secondary)', color: 'var(--text-secondary)', border: '1px solid var(--border)',
+        }}>✕ Cancel</button>
       </div>
     </div>
   )

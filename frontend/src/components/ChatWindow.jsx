@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Bot, User } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
 import AgentTimeline from './AgentTimeline'
 import CitationBadge from './CitationBadge'
 import BookingCard from './BookingCard'
@@ -8,11 +7,12 @@ import FollowUpChips from './FollowUpChips'
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
 function TypingIndicator() {
+  const dot = { width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--text-secondary)', display: 'inline-block' }
   return (
-    <div className="flex items-center gap-1 px-3 py-2 rounded-2xl w-fit" style={{ backgroundColor: 'var(--bg-card)' }}>
-      <span className="w-2 h-2 rounded-full typing-dot" style={{ backgroundColor: 'var(--text-secondary)' }} />
-      <span className="w-2 h-2 rounded-full typing-dot" style={{ backgroundColor: 'var(--text-secondary)' }} />
-      <span className="w-2 h-2 rounded-full typing-dot" style={{ backgroundColor: 'var(--text-secondary)' }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '12px 16px', borderRadius: '4px 18px 18px 18px', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+      <span className="typing-dot" style={dot} />
+      <span className="typing-dot" style={dot} />
+      <span className="typing-dot" style={dot} />
     </div>
   )
 }
@@ -20,24 +20,48 @@ function TypingIndicator() {
 function MessageBubble({ message, onSlotSelect, onCancel, onConfirm }) {
   const isUser = message.role === 'user'
   return (
-    <div className={`flex gap-3 mb-4 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-      <div
-        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-        style={{ backgroundColor: isUser ? '#4f46e5' : 'var(--bg-card)' }}
-      >
-        {isUser
-          ? <User size={16} className="text-white" />
-          : <Bot size={16} className="text-indigo-400" />
-        }
-      </div>
-      <div className={`max-w-[75%] ${isUser ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-        <div
-          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${isUser ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}
-          style={isUser
-            ? { backgroundColor: '#4f46e5', color: '#ffffff' }
-            : { backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)' }
-          }
-        >
+    <div className="message-enter" style={{
+      display: 'flex',
+      justifyContent: isUser ? 'flex-end' : 'flex-start',
+      gap: '10px',
+      marginBottom: '16px',
+      alignItems: 'flex-start',
+    }}>
+      {!isUser && (
+        <div style={{
+          width: '32px', height: '32px', flexShrink: 0,
+          background: 'linear-gradient(135deg, #1c1c2e, #2a2a3e)',
+          border: '1px solid var(--border)',
+          borderRadius: '10px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '16px',
+        }}>🤖</div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: isUser ? '75%' : '85%', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
+        <div style={isUser
+          ? {
+              padding: '12px 16px',
+              borderRadius: '18px 18px 4px 18px',
+              background: 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
+              color: '#fff',
+              fontSize: '14px',
+              lineHeight: '1.6',
+              boxShadow: '0 4px 16px rgba(91,76,245,0.3)',
+              whiteSpace: 'pre-wrap',
+            }
+          : {
+              padding: '14px 18px',
+              borderRadius: '4px 18px 18px 18px',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-primary)',
+              fontSize: '14px',
+              lineHeight: '1.7',
+              boxShadow: 'var(--shadow-sm)',
+              whiteSpace: 'pre-wrap',
+            }
+        }>
           {message.content}
         </div>
 
@@ -203,123 +227,154 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState, userNam
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--bg-primary)' }}>
-      {/* Header */}
-      <div className="px-6 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex items-center gap-2">
-          <Bot size={20} className="text-indigo-400" />
-          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>HR Assistant</span>
-        </div>
-        {threadId && (
-          <span className="text-xs font-mono" style={{ color: 'var(--text-faint)' }}>
-            {threadId.slice(0, 24)}...
-          </span>
-        )}
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-primary)' }}>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
-        {messages.length === 0 && !isStreaming && !loadingHistory && (
-          <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-            <div className="w-16 h-16 rounded-full border flex items-center justify-center" style={{ backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'rgba(99,102,241,0.3)' }}>
-              <Bot size={32} className="text-indigo-400" />
-            </div>
-            <div>
-              <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-                {userName ? `Hello ${userName}! 👋 How can I help you today?` : 'Ask about HR policies or book an appointment'}
-              </p>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Try: "How often are performance reviews conducted?" or "Book a meeting"</p>
-            </div>
-          </div>
-        )}
+      {/* Messages area */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 0' }}>
+        <div style={{ maxWidth: '720px', margin: '0 auto', padding: '0 20px' }}>
 
-        {loadingHistory && (
-          <div className="flex items-center justify-center py-8 text-sm gap-2" style={{ color: 'var(--text-secondary)' }}>
-            <span className="w-2 h-2 rounded-full typing-dot" style={{ backgroundColor: 'var(--text-secondary)' }} />
-            <span>Loading conversation...</span>
-          </div>
-        )}
-
-        {messages.map((msg, i) => (
-          <MessageBubble
-            key={i}
-            message={msg}
-            onSlotSelect={handleSlotSelect}
-            onCancel={handleCancelBooking}
-            onConfirm={handleConfirmBooking}
-          />
-        ))}
-
-        {/* Follow-up chips after last assistant message (only when not streaming) */}
-        {!isStreaming && shownFollowUps.length > 0 && (
-          <FollowUpChips questions={shownFollowUps} onSend={handleSend} />
-        )}
-
-        {currentNodeEvents.length > 0 && (
-          <AgentTimeline nodeEvents={currentNodeEvents} isStreaming={isStreaming} />
-        )}
-
-        {/* Streaming text */}
-        {isStreaming && streamingContent && (
-          <div className="flex gap-3 mb-4">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ backgroundColor: 'var(--bg-card)' }}>
-              <Bot size={16} className="text-indigo-400" />
-            </div>
-            <div className="max-w-[75%]">
-              <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed whitespace-pre-wrap" style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                {streamingContent}
-                <span className="inline-block w-1.5 h-4 bg-indigo-400 ml-0.5 animate-pulse rounded-sm" />
+          {messages.length === 0 && !isStreaming && !loadingHistory && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '16px', textAlign: 'center' }}>
+              <div style={{
+                width: '64px', height: '64px',
+                background: 'linear-gradient(135deg, rgba(91,76,245,0.2), rgba(139,92,246,0.1))',
+                border: '1px solid rgba(91,76,245,0.3)',
+                borderRadius: '20px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '32px',
+              }}>🤖</div>
+              <div>
+                <p style={{ fontWeight: 600, fontSize: '16px', marginBottom: '6px', color: 'var(--text-primary)' }}>
+                  {userName ? `Hello ${userName}! 👋` : 'Welcome to HR Assistant'}
+                </p>
+                <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Ask about HR policies or book an appointment</p>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>Try: "How often are performance reviews conducted?" or "Book a meeting"</p>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {isStreaming && !streamingContent && (
-          <div className="flex gap-3 mb-4">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--bg-card)' }}>
-              <Bot size={16} className="text-indigo-400" />
+          {loadingHistory && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', gap: '8px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+              <span className="w-2 h-2 rounded-full typing-dot" style={{ backgroundColor: 'var(--text-secondary)', width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }} />
+              Loading conversation...
             </div>
-            <TypingIndicator />
-          </div>
-        )}
+          )}
 
-        {error && (
-          <div className="text-center text-sm text-red-400 border border-red-800 rounded-lg px-4 py-2 mb-4" style={{ backgroundColor: 'rgba(239,68,68,0.1)' }}>
-            {error}
-          </div>
-        )}
+          {messages.map((msg, i) => (
+            <MessageBubble
+              key={i}
+              message={msg}
+              onSlotSelect={handleSlotSelect}
+              onCancel={handleCancelBooking}
+              onConfirm={handleConfirmBooking}
+            />
+          ))}
 
-        <div ref={bottomRef} />
+          {!isStreaming && shownFollowUps.length > 0 && (
+            <FollowUpChips questions={shownFollowUps} onSend={handleSend} />
+          )}
+
+          {currentNodeEvents.length > 0 && (
+            <AgentTimeline nodeEvents={currentNodeEvents} isStreaming={isStreaming} />
+          )}
+
+          {/* Streaming bubble */}
+          {isStreaming && streamingContent && (
+            <div className="message-enter" style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'flex-start' }}>
+              <div style={{
+                width: '32px', height: '32px', flexShrink: 0,
+                background: 'linear-gradient(135deg, #1c1c2e, #2a2a3e)',
+                border: '1px solid var(--border)', borderRadius: '10px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px',
+              }}>🤖</div>
+              <div style={{
+                maxWidth: '85%', padding: '14px 18px',
+                borderRadius: '4px 18px 18px 18px',
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                color: 'var(--text-primary)', fontSize: '14px', lineHeight: '1.7',
+                whiteSpace: 'pre-wrap', boxShadow: 'var(--shadow-sm)',
+              }}>
+                {streamingContent}
+                <span style={{ display: 'inline-block', width: '6px', height: '16px', background: 'var(--accent)', marginLeft: '3px', borderRadius: '2px', animation: 'pulse 1s infinite' }} />
+              </div>
+            </div>
+          )}
+
+          {isStreaming && !streamingContent && (
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'flex-start' }}>
+              <div style={{
+                width: '32px', height: '32px', flexShrink: 0,
+                background: 'linear-gradient(135deg, #1c1c2e, #2a2a3e)',
+                border: '1px solid var(--border)', borderRadius: '10px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px',
+              }}>🤖</div>
+              <TypingIndicator />
+            </div>
+          )}
+
+          {error && (
+            <div style={{ textAlign: 'center', fontSize: '13px', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '10px 16px', marginBottom: '16px', backgroundColor: 'rgba(239,68,68,0.08)' }}>
+              {error}
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
       </div>
 
-      {/* Input */}
-      <div className="px-6 py-4 border-t" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex gap-3 items-end">
+      {/* Input bar */}
+      <div style={{ borderTop: '1px solid var(--border)', padding: '16px 20px', background: 'var(--bg-secondary)' }}>
+        <div
+          style={{
+            maxWidth: '720px', margin: '0 auto',
+            display: 'flex', gap: '10px', alignItems: 'flex-end',
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: '16px', padding: '10px 12px',
+            boxShadow: 'var(--shadow-sm)', transition: 'border-color 0.2s, box-shadow 0.2s',
+          }}
+          onFocusCapture={e => {
+            e.currentTarget.style.borderColor = 'var(--accent)'
+            e.currentTarget.style.boxShadow = '0 0 0 3px var(--accent-soft)'
+          }}
+          onBlurCapture={e => {
+            e.currentTarget.style.borderColor = 'var(--border)'
+            e.currentTarget.style.boxShadow = 'var(--shadow-sm)'
+          }}
+        >
           <textarea
             ref={inputRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isStreaming}
-            placeholder="Ask about policies or book an appointment..."
+            placeholder="Ask about HR policies or book an appointment..."
             rows={1}
-            className="flex-1 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none disabled:opacity-50 transition-colors border"
             style={{
-              backgroundColor: 'var(--bg-card)',
-              borderColor: 'var(--border)',
-              color: 'var(--text-primary)',
-              minHeight: '44px',
-              maxHeight: '120px',
+              flex: 1, border: 'none', background: 'transparent',
+              color: 'var(--text-primary)', fontSize: '14px',
+              resize: 'none', outline: 'none', lineHeight: '1.5',
+              maxHeight: '120px', overflowY: 'auto', fontFamily: 'inherit',
+              opacity: isStreaming ? 0.5 : 1,
             }}
           />
           <button
             onClick={() => handleSend()}
             disabled={!input.trim() || isStreaming}
-            className="flex items-center justify-center w-11 h-11 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:cursor-not-allowed text-white transition-colors shrink-0"
-            style={(!input.trim() || isStreaming) ? { backgroundColor: 'var(--bg-input)', color: 'var(--text-secondary)' } : undefined}
-          >
-            <Send size={18} />
-          </button>
+            style={{
+              width: '36px', height: '36px', borderRadius: '10px', border: 'none',
+              background: (!input.trim() || isStreaming)
+                ? 'var(--bg-hover)'
+                : 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
+              color: (!input.trim() || isStreaming) ? 'var(--text-muted)' : '#fff',
+              fontSize: '18px', cursor: (!input.trim() || isStreaming) ? 'not-allowed' : 'pointer',
+              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: (!input.trim() || isStreaming) ? 'none' : '0 2px 8px rgba(91,76,245,0.3)',
+              transition: 'transform 0.1s, box-shadow 0.1s',
+              fontFamily: 'inherit',
+            }}
+            onMouseOver={e => { if (!(!input.trim() || isStreaming)) e.currentTarget.style.transform = 'scale(1.05)' }}
+            onMouseOut={e => { e.currentTarget.style.transform = 'scale(1)' }}
+          >↑</button>
         </div>
       </div>
     </div>

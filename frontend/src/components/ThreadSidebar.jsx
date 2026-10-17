@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Plus, MessageSquare, Trash2, Edit2, Check, X } from 'lucide-react'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -7,6 +6,7 @@ export default function ThreadSidebar({ threads, activeThreadId, onNew, onSelect
   const [editingId, setEditingId] = useState(null)
   const [editValue, setEditValue] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [hoveredId, setHoveredId] = useState(null)
 
   const startEdit = (thread) => {
     setEditingId(thread.id)
@@ -29,27 +29,34 @@ export default function ThreadSidebar({ threads, activeThreadId, onNew, onSelect
   }
 
   return (
-    <div
-      className="flex flex-col h-full w-64 shrink-0 border-r"
-      style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
-    >
-      <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
-        <h1 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider mb-3">
-          HR Assistant
-        </h1>
+    <div style={{
+      display: 'flex', flexDirection: 'column', height: '100%', width: '240px', flexShrink: 0,
+      borderRight: '1px solid var(--border)', backgroundColor: 'var(--bg-secondary)',
+    }}>
+      <div style={{ padding: '16px', borderBottom: '1px solid var(--border)' }}>
+        <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-fg)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '12px' }}>
+          Conversations
+        </p>
         <button
           onClick={onNew}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            padding: '9px 12px', borderRadius: '10px', border: 'none',
+            background: 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
+            color: '#fff', fontWeight: 600, fontSize: '13px', cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(91,76,245,0.3)', transition: 'all 0.2s', fontFamily: 'inherit',
+          }}
+          onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+          onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
         >
-          <Plus size={16} />
-          New Conversation
+          + New Conversation
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
         {threads.length === 0 && (
-          <p className="text-xs text-center py-8 px-4" style={{ color: 'var(--text-secondary)' }}>
-            No conversations yet. Start one above.
+          <p style={{ fontSize: '12px', textAlign: 'center', padding: '32px 16px', color: 'var(--text-secondary)' }}>
+            No conversations yet.
           </p>
         )}
         {threads.map(thread => {
@@ -57,16 +64,21 @@ export default function ThreadSidebar({ threads, activeThreadId, onNew, onSelect
           return (
             <div
               key={thread.id}
-              className="group flex items-center gap-2 px-3 py-2 rounded-lg mb-1 cursor-pointer transition-colors"
               style={{
-                backgroundColor: isActive ? undefined : undefined,
-                border: isActive ? '1px solid #6366f1' : '1px solid transparent',
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '8px 10px', borderRadius: '10px', marginBottom: '2px',
+                cursor: 'pointer', transition: 'all 0.15s',
+                background: isActive
+                  ? 'linear-gradient(135deg, rgba(91,76,245,0.15), rgba(139,92,246,0.08))'
+                  : hoveredId === thread.id ? 'var(--bg-hover)' : 'transparent',
+                border: isActive ? '1px solid rgba(91,76,245,0.3)'
+                  : hoveredId === thread.id ? '1px solid var(--border-subtle)' : '1px solid transparent',
               }}
               onClick={() => onSelect(thread.id)}
-              onMouseEnter={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'var(--bg-card)' }}
-              onMouseLeave={e => { if (!isActive) e.currentTarget.style.backgroundColor = '' }}
+              onMouseEnter={() => setHoveredId(thread.id)}
+              onMouseLeave={() => setHoveredId(null)}
             >
-              <MessageSquare size={14} className="shrink-0" style={{ color: 'var(--text-secondary)' }} />
+              <span style={{ fontSize: '13px', flexShrink: 0 }}>💬</span>
 
               {editingId === thread.id ? (
                 <input
@@ -74,58 +86,49 @@ export default function ThreadSidebar({ threads, activeThreadId, onNew, onSelect
                   value={editValue}
                   onChange={e => setEditValue(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') saveEdit(thread.id); if (e.key === 'Escape') setEditingId(null) }}
-                  className="flex-1 text-xs px-1 py-0.5 rounded outline-none"
-                  style={{ backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                  style={{
+                    flex: 1, fontSize: '12px', padding: '2px 6px', borderRadius: '6px',
+                    border: '1px solid var(--accent)', background: 'var(--bg-card)',
+                    color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit',
+                  }}
                   onClick={e => e.stopPropagation()}
                 />
               ) : (
-                <span className="flex-1 text-xs truncate" style={{ color: isActive ? 'var(--text-primary)' : 'var(--text-primary)', opacity: isActive ? 1 : 0.85 }}>
+                <span style={{ flex: 1, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                   {thread.title || 'New Conversation'}
                 </span>
               )}
 
-              <div className="hidden group-hover:flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                {editingId === thread.id ? (
-                  <>
-                    <button onClick={() => saveEdit(thread.id)} className="text-green-400 hover:text-green-300">
-                      <Check size={12} />
-                    </button>
-                    <button onClick={() => setEditingId(null)} style={{ color: 'var(--text-secondary)' }}>
-                      <X size={12} />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={() => startEdit(thread)} style={{ color: 'var(--text-secondary)' }} className="hover:text-indigo-400">
-                      <Edit2 size={12} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirmDelete === thread.id) {
-                          onDelete(thread.id)
-                          setConfirmDelete(null)
-                        } else {
-                          setConfirmDelete(thread.id)
-                          setTimeout(() => setConfirmDelete(null), 3000)
-                        }
-                      }}
-                      className={confirmDelete === thread.id ? 'text-red-400' : 'hover:text-red-400'}
-                      style={{ color: confirmDelete === thread.id ? undefined : 'var(--text-secondary)' }}
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </>
-                )}
-              </div>
+              {(hoveredId === thread.id || editingId === thread.id) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} onClick={e => e.stopPropagation()}>
+                  {editingId === thread.id ? (
+                    <>
+                      <button onClick={() => saveEdit(thread.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--success)', fontSize: '13px', padding: '2px' }}>✓</button>
+                      <button onClick={() => setEditingId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', padding: '2px' }}>✕</button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => startEdit(thread)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '13px', padding: '2px' }}>✏</button>
+                      <button
+                        onClick={() => {
+                          if (confirmDelete === thread.id) { onDelete(thread.id); setConfirmDelete(null) }
+                          else { setConfirmDelete(thread.id); setTimeout(() => setConfirmDelete(null), 3000) }
+                        }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', padding: '2px', color: confirmDelete === thread.id ? 'var(--danger)' : 'var(--text-muted)' }}
+                      >🗑</button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )
         })}
       </div>
 
       {activeThreadId && (
-        <div className="p-3 border-t" style={{ borderColor: 'var(--border)' }}>
-          <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
-            Thread: <span className="font-mono" style={{ color: 'var(--text-primary)', opacity: 0.7 }}>{activeThreadId}</span>
+        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
+            {activeThreadId}
           </p>
         </div>
       )}

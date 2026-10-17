@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MessageSquare, BarChart3, FileText, PieChart } from 'lucide-react'
+
 import ThreadSidebar from './components/ThreadSidebar'
 import ChatWindow from './components/ChatWindow'
 import EvalDashboard from './components/EvalDashboard'
@@ -11,10 +11,10 @@ import { useSSE } from './hooks/useSSE'
 import { useThread } from './hooks/useThread'
 
 const TABS = [
-  { id: 'chat', label: 'Chat', icon: MessageSquare },
-  { id: 'dashboard', label: 'Dashboard', icon: PieChart },
-  { id: 'eval', label: 'Eval Lab', icon: BarChart3 },
-  { id: 'docs', label: 'Documents', icon: FileText },
+  { id: 'chat',      label: 'Chat',      icon: '💬' },
+  { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+  { id: 'eval',      label: 'Eval Lab',  icon: '🧪' },
+  { id: 'docs',      label: 'Documents', icon: '📄' },
 ]
 
 export default function App() {
@@ -26,15 +26,12 @@ export default function App() {
     threads, activeThreadId, createThread, selectThread, deleteThread, refreshThreads
   } = useThread()
 
-  // Restore session from localStorage on mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem('hr_user')
       const token = localStorage.getItem('hr_token')
       if (stored && token) setUser(JSON.parse(stored))
-    } catch {
-      // ignore parse errors
-    }
+    } catch { /* ignore */ }
     setAuthChecked(true)
   }, [])
 
@@ -59,81 +56,124 @@ export default function App() {
     setActiveTab('chat')
   }
 
-  // Prevent flash while checking localStorage
   if (!authChecked) return null
-
-  // Show login/register page when not authenticated
   if (!user) return <AuthPage onLogin={handleLogin} />
 
+  const initial = user.name?.charAt(0).toUpperCase() || '?'
+
   return (
-    <div
-      className="flex h-screen overflow-hidden"
-      style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-    >
-      {/* Left sidebar */}
-      <ThreadSidebar
-        threads={threads}
-        activeThreadId={activeThreadId}
-        onNew={handleNewThread}
-        onSelect={handleSelectThread}
-        onDelete={deleteThread}
-        onRename={refreshThreads}
-      />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
 
-      {/* Main content */}
-      <div className="flex flex-col flex-1 min-w-0">
+      {/* ── Sticky header ── */}
+      <header style={{
+        height: '56px',
+        borderBottom: '1px solid var(--border)',
+        background: 'rgba(15,15,19,0.85)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 20px',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        flexShrink: 0,
+      }}>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '32px', height: '32px',
+            background: 'linear-gradient(135deg, #5b4cf5, #8b5cf6)',
+            borderRadius: '10px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '16px', boxShadow: '0 0 12px rgba(91,76,245,0.4)',
+            flexShrink: 0,
+          }}>🤖</div>
+          <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.3px', color: 'var(--text-primary)' }}>
+            HR Assistant
+          </span>
+        </div>
+
         {/* Tab bar */}
-        <div
-          className="flex items-center justify-between px-4 pt-3 pb-0 border-b"
-          style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border)' }}
-        >
-          <div className="flex items-center gap-1">
-            {TABS.map(tab => {
-              const Icon = tab.icon
-              const isActive = activeTab === tab.id
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm rounded-t-lg transition-colors border-b-2"
-                  style={{
-                    color: isActive ? 'var(--accent-fg)' : 'var(--text-secondary)',
-                    borderBottomColor: isActive ? 'var(--accent)' : 'transparent',
-                    backgroundColor: isActive ? 'var(--bg-secondary)' : 'transparent',
-                  }}
-                >
-                  <Icon size={15} />
-                  {tab.label}
-                </button>
-              )
-            })}
-          </div>
+        <div style={{
+          display: 'flex',
+          background: 'var(--bg-secondary)',
+          borderRadius: '10px',
+          padding: '3px',
+          gap: '2px',
+          border: '1px solid var(--border)',
+        }}>
+          {TABS.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+              padding: '6px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeTab === tab.id
+                ? 'linear-gradient(135deg, #5b4cf5, #7c5cf6)'
+                : 'transparent',
+              color: activeTab === tab.id ? '#fff' : 'var(--text-secondary)',
+              fontWeight: activeTab === tab.id ? 600 : 400,
+              fontSize: '13px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              boxShadow: activeTab === tab.id ? '0 2px 8px rgba(91,76,245,0.3)' : 'none',
+              fontFamily: 'inherit',
+            }}>
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
 
-          {/* Right side: user name + logout + theme */}
-          <div className="flex items-center gap-3 pb-2">
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              👤 {user.name}
+        {/* Right: theme + user */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <ThemeToggle />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{
+              width: '28px', height: '28px',
+              background: 'linear-gradient(135deg, #5b4cf5, #8b5cf6)',
+              borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '12px', fontWeight: 700, color: '#fff', flexShrink: 0,
+            }}>{initial}</div>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user.name}
             </span>
             <button
               onClick={handleLogout}
               style={{
-                padding: '4px 12px',
+                padding: '4px 10px',
                 borderRadius: '6px',
                 border: '1px solid var(--border)',
                 background: 'transparent',
-                color: 'var(--text-secondary)',
+                color: 'var(--text-muted)',
                 fontSize: '12px',
                 cursor: 'pointer',
+                transition: 'all 0.15s',
+                fontFamily: 'inherit',
               }}
-            >
-              Sign out
-            </button>
-            <ThemeToggle />
+              onMouseOver={e => e.currentTarget.style.borderColor = 'var(--danger)'}
+              onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border)'}
+            >Sign out</button>
           </div>
         </div>
+      </header>
 
-        {/* Tab content */}
-        <div className="flex-1 overflow-hidden">
+      {/* ── Body below header ── */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        {activeTab === 'chat' && (
+          <ThreadSidebar
+            threads={threads}
+            activeThreadId={activeThreadId}
+            onNew={handleNewThread}
+            onSelect={handleSelectThread}
+            onDelete={deleteThread}
+            onRename={refreshThreads}
+          />
+        )}
+
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {activeTab === 'chat' && (
             <ChatWindow
               threadId={activeThreadId}

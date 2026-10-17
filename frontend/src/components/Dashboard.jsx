@@ -142,25 +142,27 @@ function BarChart({ data }) {
 // ── Stat Tile ─────────────────────────────────────────────────────────────────
 
 function StatTile({ icon, label, value, color }) {
+  const tileColor = color || 'var(--accent)'
   return (
     <div
       style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        borderRadius: '12px',
-        padding: '20px 24px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px',
-        flex: 1,
-        minWidth: 0,
+        background: 'var(--bg-card)', border: '1px solid var(--border)',
+        borderRadius: '16px', padding: '20px',
+        position: 'relative', overflow: 'hidden',
+        flex: 1, minWidth: 0,
+        transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'default',
       }}
+      onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)' }}
+      onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none' }}
     >
-      <div style={{ fontSize: '22px' }}>{icon}</div>
-      <div style={{ fontSize: '2rem', fontWeight: 700, color: color || 'var(--accent)', lineHeight: 1 }}>
-        {value ?? '—'}
-      </div>
-      <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>{label}</div>
+      <div style={{
+        position: 'absolute', top: 0, right: 0, width: '80px', height: '80px',
+        background: `radial-gradient(circle at top right, ${tileColor}22, transparent 70%)`,
+        borderRadius: '0 16px 0 0', pointerEvents: 'none',
+      }} />
+      <div style={{ fontSize: '24px', marginBottom: '8px' }}>{icon}</div>
+      <div style={{ fontSize: '2rem', fontWeight: 800, color: tileColor, lineHeight: 1 }}>{value ?? '—'}</div>
+      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px', fontWeight: 500 }}>{label}</div>
     </div>
   )
 }
