@@ -45,6 +45,26 @@ export default function App() {
     setToast({ message, type })
     toastTimerRef.current = setTimeout(() => setToast(null), 3000)
   }
+
+  const authFetch = async (url, options = {}) => {
+    const token = localStorage.getItem('hr_token')
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+    })
+    if (res.status === 401) {
+      localStorage.removeItem('hr_token')
+      localStorage.removeItem('hr_user')
+      setUser(null)
+      showToast('Session expired. Please sign in again.', 'error')
+      return null
+    }
+    return res
+  }
   const ssState = useSSE()
   const { threads, activeThreadId, createThread, selectThread, deleteThread, refreshThreads } = useThread()
 
@@ -291,9 +311,10 @@ export default function App() {
               onThreadUpdated={refreshThreads}
               userName={user.name}
               showToast={showToast}
+              authFetch={authFetch}
             />
           )}
-          {activeTab === 'dashboard' && <Dashboard setActiveTab={setActiveTab} showToast={showToast} />}
+          {activeTab === 'dashboard' && <Dashboard setActiveTab={setActiveTab} showToast={showToast} authFetch={authFetch} />}
           {activeTab === 'eval' && <EvalDashboard />}
           {activeTab === 'docs' && <DocPanel />}
         </div>

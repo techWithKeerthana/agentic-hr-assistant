@@ -2,18 +2,6 @@ import { useState } from 'react'
 
 const API = 'http://localhost:8080'
 
-const inputStyle = {
-  width: '100%',
-  padding: '10px 14px',
-  borderRadius: '10px',
-  border: '1px solid var(--border)',
-  background: 'var(--bg-secondary)',
-  color: 'var(--text-primary)',
-  fontSize: '14px',
-  outline: 'none',
-  boxSizing: 'border-box',
-}
-
 const labelStyle = {
   fontSize: '13px',
   fontWeight: 500,
@@ -22,17 +10,71 @@ const labelStyle = {
   marginBottom: '6px',
 }
 
+const inputStyle = {
+  width: '100%',
+  padding: '11px 14px',
+  borderRadius: '10px',
+  border: '1px solid var(--border)',
+  background: 'var(--bg-secondary)',
+  color: 'var(--text-primary)',
+  fontSize: '14px',
+  fontFamily: 'inherit',
+  transition: 'border-color 0.2s, box-shadow 0.2s',
+  boxSizing: 'border-box',
+}
+
+function getPasswordStrength(password) {
+  if (!password) return { score: 0, label: '', color: '', checks: {} }
+  const checks = {
+    length:  password.length >= 8,
+    upper:   /[A-Z]/.test(password),
+    lower:   /[a-z]/.test(password),
+    number:  /\d/.test(password),
+    special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+  }
+  const score = Object.values(checks).filter(Boolean).length
+  const levels = [
+    { label: '',            color: '' },
+    { label: 'Very Weak',  color: '#ef4444' },
+    { label: 'Weak',       color: '#f97316' },
+    { label: 'Fair',       color: '#f59e0b' },
+    { label: 'Strong',     color: '#10b981' },
+    { label: 'Very Strong',color: '#059669' },
+  ]
+  return { score, ...levels[score], checks }
+}
+
 export default function AuthPage({ onLogin }) {
   const [mode, setMode] = useState('login')
   const [form, setForm] = useState({ name: '', email: '', password: '' })
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
+  const switchMode = (m) => {
+    setMode(m)
+    setError('')
+    setConfirmPassword('')
+    setShowPassword(false)
+  }
+
+  const strength = getPasswordStrength(form.password)
+  const passwordsMatch = form.password === confirmPassword
+
+  const isSubmitDisabled = loading
+    || (mode === 'register' && strength.score < 4)
+    || (mode === 'register' && !!confirmPassword && !passwordsMatch)
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    if (mode === 'register' && !passwordsMatch) {
+      setError('Passwords do not match')
+      return
+    }
     setLoading(true)
     const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register'
     const body = mode === 'login'
@@ -59,18 +101,6 @@ export default function AuthPage({ onLogin }) {
     }
   }
 
-  const inputStyle2 = {
-    width: '100%',
-    padding: '11px 14px',
-    borderRadius: '10px',
-    border: '1px solid var(--border)',
-    background: 'var(--bg-secondary)',
-    color: 'var(--text-primary)',
-    fontSize: '14px',
-    fontFamily: 'inherit',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-  }
-
   return (
     <div style={{
       minHeight: '100vh',
@@ -94,7 +124,7 @@ export default function AuthPage({ onLogin }) {
 
       {/* Card */}
       <div style={{
-        width: '400px', background: 'var(--bg-card)',
+        width: '420px', background: 'var(--bg-card)',
         border: '1px solid var(--border)', borderRadius: '24px',
         padding: '40px',
         boxShadow: '0 24px 80px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)',
@@ -125,7 +155,7 @@ export default function AuthPage({ onLogin }) {
         {/* Mode switcher */}
         <div style={{ display: 'flex', background: 'var(--bg-secondary)', borderRadius: '10px', padding: '4px', marginBottom: '24px', border: '1px solid var(--border)' }}>
           {['login', 'register'].map((m) => (
-            <button key={m} onClick={() => { setMode(m); setError('') }} style={{
+            <button key={m} onClick={() => switchMode(m)} style={{
               flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
               background: mode === m ? 'linear-gradient(135deg, #5b4cf5, #7c5cf6)' : 'transparent',
               color: mode === m ? '#fff' : 'var(--text-secondary)',
@@ -140,17 +170,103 @@ export default function AuthPage({ onLogin }) {
           {mode === 'register' && (
             <div>
               <label style={labelStyle}>Full Name</label>
-              <input type="text" required placeholder="Jane Smith" value={form.name} onChange={set('name')} style={inputStyle2} />
+              <input type="text" required placeholder="Jane Smith" value={form.name} onChange={set('name')} style={inputStyle} />
             </div>
           )}
+
           <div>
             <label style={labelStyle}>Email</label>
-            <input type="email" required placeholder="you@company.com" value={form.email} onChange={set('email')} style={inputStyle2} />
+            <input type="email" required placeholder="you@company.com" value={form.email} onChange={set('email')} style={inputStyle} />
           </div>
+
+          {/* Password field with show/hide toggle */}
           <div>
             <label style={labelStyle}>Password</label>
-            <input type="password" required placeholder="Min 6 characters" value={form.password} onChange={set('password')} style={inputStyle2} />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                placeholder={mode === 'register' ? 'Min 8 chars, upper, number, special' : 'Your password'}
+                value={form.password}
+                onChange={set('password')}
+                style={{ ...inputStyle, paddingRight: '44px' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(s => !s)}
+                style={{
+                  position: 'absolute', right: '12px', top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none', border: 'none',
+                  color: 'var(--text-muted)', cursor: 'pointer',
+                  fontSize: '16px', padding: '4px', lineHeight: 1,
+                }}
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
+
+            {/* Password strength meter — register only */}
+            {mode === 'register' && form.password && (
+              <div style={{ marginTop: '8px' }}>
+                <div style={{ display: 'flex', gap: '4px', marginBottom: '6px' }}>
+                  {[1,2,3,4,5].map(i => (
+                    <div key={i} style={{
+                      flex: 1, height: '3px', borderRadius: '99px',
+                      background: i <= strength.score ? strength.color : 'var(--border)',
+                      transition: 'background 0.3s',
+                    }} />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '11px', color: strength.color, fontWeight: 600 }}>
+                    {strength.label}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  {[
+                    { key: 'length',  label: 'At least 8 characters' },
+                    { key: 'upper',   label: 'One uppercase letter' },
+                    { key: 'lower',   label: 'One lowercase letter' },
+                    { key: 'number',  label: 'One number' },
+                    { key: 'special', label: 'One special character (!@#$...)' },
+                  ].map(req => (
+                    <div key={req.key} style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      fontSize: '11px',
+                      color: strength.checks?.[req.key] ? '#10b981' : 'var(--text-muted)',
+                    }}>
+                      <span>{strength.checks?.[req.key] ? '✓' : '○'}</span>
+                      {req.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Confirm password — register only */}
+          {mode === 'register' && (
+            <div>
+              <label style={labelStyle}>Confirm Password</label>
+              <input
+                type="password"
+                required
+                placeholder="Repeat your password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                style={{
+                  ...inputStyle,
+                  borderColor: confirmPassword && !passwordsMatch ? '#ef4444' : 'var(--border)',
+                }}
+              />
+              {confirmPassword && !passwordsMatch && (
+                <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px', margin: '4px 0 0' }}>
+                  ⚠️ Passwords do not match
+                </p>
+              )}
+            </div>
+          )}
 
           {error && (
             <div style={{
@@ -160,16 +276,20 @@ export default function AuthPage({ onLogin }) {
             }}>⚠️ {error}</div>
           )}
 
-          <button type="submit" disabled={loading} style={{
-            padding: '12px', borderRadius: '12px', border: 'none',
-            background: loading ? 'var(--bg-hover)' : 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
-            color: loading ? 'var(--text-muted)' : '#fff',
-            fontWeight: 700, fontSize: '15px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            marginTop: '4px', fontFamily: 'inherit',
-            boxShadow: loading ? 'none' : '0 4px 16px rgba(91,76,245,0.35)',
-            transition: 'all 0.2s',
-          }}>
+          <button
+            type="submit"
+            disabled={isSubmitDisabled}
+            style={{
+              padding: '12px', borderRadius: '12px', border: 'none',
+              background: isSubmitDisabled ? 'var(--bg-hover)' : 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
+              color: isSubmitDisabled ? 'var(--text-muted)' : '#fff',
+              fontWeight: 700, fontSize: '15px',
+              cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
+              marginTop: '4px', fontFamily: 'inherit',
+              boxShadow: isSubmitDisabled ? 'none' : '0 4px 16px rgba(91,76,245,0.35)',
+              transition: 'all 0.2s',
+            }}
+          >
             {loading ? '⏳ Please wait...' : mode === 'login' ? '🔐 Sign In' : '🚀 Create Account'}
           </button>
         </form>

@@ -1,4 +1,5 @@
 ﻿import os
+import re
 import json
 import uuid
 import asyncio
@@ -7,11 +8,14 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Header
+from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 load_dotenv()
 
@@ -44,6 +48,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Agentic HR Assistant", lifespan=lifespan)
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
 app.add_middleware(
@@ -188,6 +196,20 @@ async def stream_graph_response(message: str, thread_id: str):
         yield sse_event("done", {"thread_id": thread_id, "ref_id": None})
 
 
+def validate_password(password: str) -> tuple[bool, str]:
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters"
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter"
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter"
+    if not re.search(r'\d', password):
+        return False, "Password must contain at least one number"
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return False, "Password must contain at least one special character"
+    return True, ""
+
+
 class RegisterRequest(BaseModel):
     name: str
     email: str
@@ -200,9 +222,15 @@ class LoginRequest(BaseModel):
 
 
 @app.post("/api/auth/register")
-async def register(body: RegisterRequest):
-    if len(body.password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+@limiter.limit("3/minute")
+async def register(request: Request, body: RegisterRequest):
+    if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', body.email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    if len(body.name.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
+    valid, msg = validate_password(body.password)
+    if not valid:
+        raise HTTPException(status_code=400, detail=msg)
     conn = get_connection()
     existing = conn.execute(
         "SELECT id FROM users WHERE email = ?", (body.email.lower(),)
@@ -227,7 +255,8 @@ async def register(body: RegisterRequest):
 
 
 @app.post("/api/auth/login")
-async def login(body: LoginRequest):
+@limiter.limit("5/minute")
+async def login(request: Request, body: LoginRequest):
     conn = get_connection()
     user = conn.execute(
         "SELECT * FROM users WHERE email = ?", (body.email.lower(),)
