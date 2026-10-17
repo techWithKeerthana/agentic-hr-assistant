@@ -9,4 +9,4 @@ Get-Content $envFile | ForEach-Object {
 }
 $env:PYTHONPATH = "."
 Set-Location "C:\Intelligent\agentic-hr-assistant\backend"
-& ".\venv\Scripts\uvicorn.exe" main:app --port 8000 --log-level info
+& ".\venv\Scripts\uvicorn.exe" main:app --port 8080 --log-level info

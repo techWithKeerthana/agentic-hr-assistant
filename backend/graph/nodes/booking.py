@@ -108,7 +108,7 @@ def booking_node(state: AgentState) -> AgentState:
                 "messages": [{"role": "assistant", "content": answer}],
             }
 
-        # Got both â€” fetch slots
+        # Got both - fetch slots
         slots = get_available_slots()
         if not slots:
             answer = "Sorry, there are no available slots at this time. Please check back later."
@@ -270,7 +270,7 @@ def booking_node(state: AgentState) -> AgentState:
 
         events.append({"type": "booking_confirmed", "ref_id": ref_id, "slot_label": slot_label})
         answer = (
-            f"Your appointment is confirmed! ðŸŽ‰\n\n"
+            f"Your appointment is confirmed!\n\n"
             f"**Booking Reference**: `{ref_id}`\n"
             f"**Slot**: {slot_label}\n"
             f"**Name**: {state.get('name')}\n\n"

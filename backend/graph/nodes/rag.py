@@ -32,7 +32,7 @@ def get_llm():
 
 
 def rag_node(state: AgentState) -> AgentState:
-    # Injection detected upstream â€” return safe refusal without touching LLM
+    # Injection detected upstream - return safe refusal without touching LLM
     if state.get("injection_detected"):
         return {
             **state,
@@ -95,7 +95,7 @@ def rag_node(state: AgentState) -> AgentState:
     pending = state.get("pending_action")
     booking_status = state.get("booking_status")
     if pending == "resume_booking" or booking_status in ("collecting_info", "slot_selection", "pending_confirmation"):
-        answer += "\n\n---\n*Returning to your appointment booking â€” where we left off...*"
+        answer += "\n\n---\n*Returning to your appointment booking - where we left off...*"
         events.append({"type": "node_change", "node": "rag", "description": "Resuming booking flow"})
 
     return {
