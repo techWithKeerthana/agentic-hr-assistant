@@ -1,0 +1,44 @@
+Employee Benefits
+==================
+
+Health Insurance:
+- Medical: The company offers three plan options (Bronze, Silver, Gold) through Northwind Health.
+  - Bronze plan: $50/month employee contribution, $2,500 deductible.
+  - Silver plan: $150/month employee contribution, $1,000 deductible.
+  - Gold plan: $300/month employee contribution, $250 deductible.
+- Dental: Covers preventive care at 100%, basic care at 80%, major care at 50%. $1,500 annual maximum.
+- Vision: Covers annual eye exam, $150 allowance for frames/contacts per year.
+- Benefits are effective on the first day of the month following 30 days of employment.
+- Open enrollment is held each November for the following calendar year.
+- Eligible dependents include spouse/domestic partner and children up to age 26.
+
+Retirement:
+- 401(k) plan with company match of 100% of the first 3% of salary contributed, plus 50% of the next 2%.
+- Employees are eligible to enroll after 90 days of employment.
+- Vesting schedule: 25% after year 1, 50% after year 2, 75% after year 3, 100% after year 4.
+- Roth 401(k) option available.
+- Annual contribution limit set by IRS guidelines.
+
+Life and Disability Insurance:
+- Basic life insurance: 2x annual salary, company-paid.
+- Supplemental life insurance available for purchase for employee, spouse, and dependents.
+- Short-term disability: 60% of salary for up to 12 weeks after a 7-day waiting period.
+- Long-term disability: 60% of salary after 90 days of disability, up to age 65.
+
+Additional Benefits:
+- Employee Assistance Program (EAP): free confidential counseling, legal, and financial advice.
+  Up to 6 sessions per issue per year.
+- Tuition reimbursement: up to $5,250 per year for job-related courses at accredited institutions.
+  Requires a B grade or better and 1 year of service. Employee must remain employed for 1 year after completion.
+- Professional development budget: $1,000 per year for conferences, training, and certifications.
+- Gym membership reimbursement: up to $50/month.
+- Commuter benefits: pre-tax transit and parking accounts.
+- Employee stock purchase plan (ESPP): purchase company stock at a 15% discount.
+- Childcare FSA: up to $5,000 per year pre-tax.
+- Health FSA: up to $2,850 per year pre-tax for medical expenses.
+- Dependent care assistance program.
+
+Wellness Program:
+- Annual wellness stipend of $500 for fitness equipment, apps, or classes.
+- Free flu shots and biometric screenings on-site each fall.
+- Mental health days: employees may use up to 2 PTO days specifically for mental health without medical documentation.

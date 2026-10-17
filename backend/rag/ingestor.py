@@ -1,223 +1,131 @@
+"""
+Zero-dependency keyword-search RAG.
+Loads plain .txt files from backend/data/hr_docs/ into memory.
+No ML, no vector store, no heavy packages.
+"""
 import os
-import gc
-import pickle
 import logging
-import httpx
 from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-PDF_URLS = {
-    "Employee Handbook": "https://raw.githubusercontent.com/Azure-Samples/azure-search-openai-demo/main/data/employee_handbook.pdf",
-    "Northwind Benefits": "https://raw.githubusercontent.com/Azure-Samples/azure-search-openai-demo/main/data/Northwind_Standard_Benefits_Details.pdf",
-}
+DOCS_DIR = Path(os.getenv("HR_DOCS_DIR", "./data/hr_docs"))
 
-CACHE_DIR = Path(os.getenv("PDF_CACHE_DIR", "./data/pdfs"))
-INDEX_PATH = Path(os.getenv("TFIDF_INDEX_PATH", "./data/tfidf_index.pkl"))
-CHUNK_SIZE = int(os.getenv("PDF_CHUNK_SIZE", "800"))
-CHUNK_OVERLAP = int(os.getenv("PDF_CHUNK_OVERLAP", "150"))
-
-# In-memory index loaded lazily
-_index: Optional[dict] = None  # {"vectorizer": ..., "matrix": ..., "chunks": [...]}
+# Module-level document store: list of {"id", "content", "filename", "source"}
+_docs: Optional[list] = None
 
 
-def get_index() -> Optional[dict]:
-    return _index
+def get_index() -> Optional[list]:
+    return _docs
 
 
-def get_vectorstore() -> Optional[dict]:
-    """Backward-compatible alias for get_index()."""
-    return _index
-
-
-def _download_pdf_sync(url: str, dest: Path) -> Path:
-    if dest.exists():
-        return dest
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Downloading {url}")
-    with httpx.Client(timeout=120, follow_redirects=True) as client:
-        r = client.get(url)
-        r.raise_for_status()
-        dest.write_bytes(r.content)
-    return dest
-
-
-def _extract_pages(pdf_path: Path) -> list[dict]:
-    """Extract pages as list of {text, page_number}."""
-    try:
-        import pdfplumber
-        pages = []
-        with pdfplumber.open(str(pdf_path)) as pdf:
-            for i, page in enumerate(pdf.pages):
-                text = page.extract_text() or ""
-                pages.append({"text": text.strip(), "page_number": i + 1})
-        return pages
-    except Exception as e:
-        logger.warning(f"pdfplumber failed ({e}), falling back to pypdf")
-    try:
-        from pypdf import PdfReader
-        reader = PdfReader(str(pdf_path))
-        pages = []
-        for i, page in enumerate(reader.pages):
-            text = page.extract_text() or ""
-            pages.append({"text": text.strip(), "page_number": i + 1})
-        return pages
-    except Exception as e2:
-        logger.error(f"PDF extraction failed: {e2}")
-        return []
-
-
-def _chunk_pages(pages: list[dict], doc_name: str) -> list[dict]:
-    chunks = []
-    for page in pages:
-        text = page["text"]
-        if not text:
-            continue
-        page_num = page["page_number"]
-        start = 0
-        while start < len(text):
-            end = min(start + CHUNK_SIZE, len(text))
-            chunk_text = text[start:end].strip()
-            if chunk_text:
-                chunks.append({
-                    "text": chunk_text,
-                    "page_number": page_num,
-                    "doc_name": doc_name,
-                })
-            start += CHUNK_SIZE - CHUNK_OVERLAP
-    return chunks
-
-
-def _build_index(chunks: list[dict]) -> dict:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    texts = [c["text"] for c in chunks]
-    vectorizer = TfidfVectorizer(
-        max_features=50000,
-        ngram_range=(1, 2),
-        sublinear_tf=True,
-        strip_accents="unicode",
-        analyzer="word",
-        token_pattern=r"(?u)\b\w+\b",
-        min_df=1,
-    )
-    matrix = vectorizer.fit_transform(texts)
-    gc.collect()
-    return {"vectorizer": vectorizer, "matrix": matrix, "chunks": chunks}
+def get_vectorstore() -> Optional[list]:
+    """Backward-compatible alias."""
+    return _docs
 
 
 def ingest_if_needed():
-    """Load existing TF-IDF index or build from PDFs. Synchronous."""
-    global _index
-    if _index is not None:
+    """Load .txt files from DOCS_DIR into memory. No-op if already loaded."""
+    global _docs
+    if _docs is not None:
         return
 
-    if INDEX_PATH.exists():
+    DOCS_DIR.mkdir(parents=True, exist_ok=True)
+    txt_files = sorted(DOCS_DIR.glob("*.txt"))
+
+    if not txt_files:
+        logger.warning(f"No .txt files found in {DOCS_DIR}")
+        _docs = []
+        return
+
+    _docs = []
+    for path in txt_files:
         try:
-            logger.info(f"Loading TF-IDF index from {INDEX_PATH}")
-            with open(INDEX_PATH, "rb") as f:
-                _index = pickle.load(f)
-            logger.info(f"Loaded index with {len(_index['chunks'])} chunks")
-            return
+            content = path.read_text(encoding="utf-8").strip()
+            _docs.append({
+                "id": path.stem,
+                "content": content,
+                "filename": path.name,
+                "source": path.stem.replace("_", " ").title(),
+            })
+            logger.info(f"Loaded HR doc: {path.name} ({len(content)} chars)")
         except Exception as e:
-            logger.warning(f"Failed to load index ({e}), rebuilding")
+            logger.error(f"Failed to load {path}: {e}")
 
-    logger.info("Building TF-IDF index from PDFs")
-    INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    logger.info(f"HR knowledge base ready: {len(_docs)} documents loaded")
 
-    all_chunks: list[dict] = []
 
-    local_handbook = Path("data/employee_handbook.pdf")
-    if not local_handbook.exists():
-        try:
-            from scripts.create_handbook import create_handbook
-            create_handbook(str(local_handbook))
-            logger.info("Auto-created synthetic Employee Handbook PDF")
-        except Exception as e:
-            logger.warning(f"Could not auto-create handbook: {e}")
+def retrieve(query: str, k: int = 3) -> dict:
+    """
+    Keyword search over loaded docs.
+    Scores each doc by the number of unique query words it contains.
+    Returns {"chunks": [...], "confidence": float, "abstain": bool}
+    """
+    ingest_if_needed()
 
-    for doc_name, url in PDF_URLS.items():
-        if doc_name == "Employee Handbook" and local_handbook.exists():
-            try:
-                pages = _extract_pages(local_handbook)
-                chunks = _chunk_pages(pages, doc_name)
-                all_chunks.extend(chunks)
-                logger.info(f"Ingested {len(chunks)} chunks from local {doc_name}")
-            except Exception as e:
-                logger.error(f"Failed to ingest local {doc_name}: {e}")
-            continue
+    if not _docs:
+        return {"chunks": [], "confidence": 0.0, "abstain": True}
 
-        filename = url.split("/")[-1]
-        dest = CACHE_DIR / filename
-        try:
-            _download_pdf_sync(url, dest)
-            pages = _extract_pages(dest)
-            chunks = _chunk_pages(pages, doc_name)
-            all_chunks.extend(chunks)
-            logger.info(f"Ingested {len(chunks)} chunks from {doc_name}")
-        except Exception as e:
-            logger.error(f"Failed to ingest {doc_name}: {e}")
+    query_words = set(query.lower().split())
+    # Remove very short stop words
+    query_words = {w for w in query_words if len(w) > 2}
 
-    if not all_chunks:
-        logger.warning("No chunks ingested — using placeholder")
-        all_chunks = [{"text": "No documents available.", "page_number": 1, "doc_name": "System"}]
+    scored = []
+    for doc in _docs:
+        content_lower = doc["content"].lower()
+        hits = sum(1 for w in query_words if w in content_lower)
+        if hits > 0:
+            scored.append((hits, doc))
 
-    _index = _build_index(all_chunks)
-    try:
-        with open(INDEX_PATH, "wb") as f:
-            pickle.dump(_index, f)
-        logger.info(f"TF-IDF index saved ({len(all_chunks)} chunks)")
-    except Exception as e:
-        logger.warning(f"Failed to save index: {e}")
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top = scored[:k]
+
+    if not top:
+        return {"chunks": [], "confidence": 0.0, "abstain": True}
+
+    max_possible = max(len(query_words), 1)
+    confidence = top[0][0] / max_possible
+
+    chunks = [
+        {
+            "text": doc["content"][:2000],  # truncate for context window
+            "page_number": 1,
+            "doc_name": doc["source"],
+            "score": hits / max_possible,
+        }
+        for hits, doc in top
+    ]
+
+    return {
+        "chunks": chunks,
+        "confidence": confidence,
+        "abstain": confidence < 0.1,
+    }
 
 
 async def ingest_additional_pdf(pdf_path: Path, doc_name: str) -> dict:
-    global _index
-    ingest_if_needed()
-
-    pages = _extract_pages(pdf_path)
-    new_chunks = _chunk_pages(pages, doc_name)
-
-    if not new_chunks:
-        return {"doc_name": doc_name, "chunk_count": 0, "page_count": 0, "status": "error"}
-
-    existing = _index["chunks"] if _index else []
-    all_chunks = existing + new_chunks
-    _index = _build_index(all_chunks)
-
-    try:
-        with open(INDEX_PATH, "wb") as f:
-            pickle.dump(_index, f)
-    except Exception as e:
-        logger.warning(f"Failed to save updated index: {e}")
-
+    """Stub — dynamic PDF upload not supported in keyword mode."""
     return {
         "doc_name": doc_name,
-        "chunk_count": len(new_chunks),
-        "page_count": len({c["page_number"] for c in new_chunks}),
-        "status": "indexed",
+        "chunk_count": 0,
+        "page_count": 0,
+        "status": "unsupported: add a .txt file to data/hr_docs/ instead",
     }
 
 
 def get_doc_stats() -> list[dict]:
-    if _index is None:
+    ingest_if_needed()
+    if not _docs:
         return []
-    stats: dict[str, dict] = {}
-    for chunk in _index["chunks"]:
-        dn = chunk.get("doc_name", "Unknown")
-        if dn not in stats:
-            stats[dn] = {"doc_name": dn, "chunk_count": 0, "pages": set()}
-        stats[dn]["chunk_count"] += 1
-        stats[dn]["pages"].add(chunk.get("page_number", 1))
     return [
         {
-            "doc_name": v["doc_name"],
-            "chunk_count": v["chunk_count"],
-            "page_count": len(v["pages"]),
+            "doc_name": doc["source"],
+            "chunk_count": 1,
+            "page_count": doc["content"].count("\n\n") + 1,
             "status": "indexed",
         }
-        for v in stats.values()
+        for doc in _docs
     ]
 
 

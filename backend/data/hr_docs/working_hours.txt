@@ -1,0 +1,29 @@
+Working Hours and Schedule Policy
+==================================
+
+Standard working hours at Northwind Traders are Monday through Friday, 8:00 AM to 5:00 PM local time, with a one-hour unpaid lunch break, making the standard workday 8 hours.
+
+Flexible Work Arrangements:
+- Employees may request flexible start/end times between 7:00 AM and 7:00 PM with manager approval.
+- Core hours when all employees must be available are 10:00 AM to 3:00 PM.
+- Remote work is permitted up to 2 days per week for eligible roles, subject to manager approval.
+- All remote work arrangements must be approved in writing by your manager and HR.
+
+Overtime:
+- Non-exempt employees who work more than 40 hours per week are entitled to overtime pay at 1.5x their regular rate.
+- Overtime must be pre-approved by your manager.
+- Exempt employees are not eligible for overtime pay.
+
+Timekeeping:
+- All non-exempt employees must record their hours using the company timekeeping system.
+- Time sheets must be submitted every Friday by 5:00 PM.
+- Falsifying time records is grounds for termination.
+
+Breaks:
+- Employees are entitled to a 15-minute paid break for every 4 hours worked.
+- A 30-60 minute unpaid meal break is required for shifts longer than 6 hours.
+
+Attendance:
+- Employees must notify their manager at least 30 minutes before their scheduled start time if they will be absent or late.
+- Chronic tardiness or absenteeism may result in disciplinary action.
+- Three or more unexcused absences in a 90-day period may result in termination.
