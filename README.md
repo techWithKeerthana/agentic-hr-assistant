@@ -14,6 +14,31 @@ Backend API: [https://nexa-hr-backend-v2z6.onrender.com](https://nexa-hr-backend
 
 ---
 
+## 📸 Screenshots
+
+### Login
+![Login](screenshots/Login.jpg)
+
+### HR Policy RAG Answer
+![HR Policy](screenshots/HRPolicy.png.jpg)
+
+### Booking — Slot Selection
+![Booking Slots](screenshots/BookingSlots.jpg)
+
+### Booking — Confirmation
+![Booking Confirm](screenshots/BokingConfirm.jpg)
+
+### Analytics Dashboard
+![Dashboard](screenshots/Dashboard.jpg)
+
+### Document Management
+![Documents](screenshots/Documents.jpg)
+
+### Agent Evaluation Lab
+![Eval Lab](screenshots/EvalLab.jpg)
+
+---
+
 ## ✨ Features
 
 | # | Feature | Description |
