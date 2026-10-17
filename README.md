@@ -1,85 +1,134 @@
-# Agentic HR Assistant
+# NexaHR — Intelligent HR Assistant
 
-A full-stack conversational AI that answers HR policy questions via RAG and books appointments through multi-turn dialogue — with a live agent control room UI.
+A full-stack agentic AI system that answers HR policy questions via a knowledge base and books appointments through a multi-turn conversational workflow, with real-time SSE streaming and JWT authentication.
 
-## Architecture
+---
 
-```mermaid
-flowchart TD
-    UI[React Frontend] -->|POST /api/chat SSE| API[FastAPI Backend]
-    API --> Graph[LangGraph StateGraph]
-    Graph --> Router[Router Node]
-    Router -->|intent=faq| RAG[RAG Node]
-    Router -->|intent=booking| Booking[Booking Node]
-    Router -->|context_switch| RAG
-    RAG --> ChromaDB[(ChromaDB\nVector Store)]
-    RAG --> BM25[BM25 Retriever]
-    Booking --> SQLite[(SQLite\nbookings table)]
-    Graph --> Checkpointer[(SqliteSaver\ncheckpointer)]
-```
+## 🚀 Live Demo
 
-## Features
+**[https://nexa-hr-assistant.vercel.app](https://nexa-hr-assistant.vercel.app)**
+
+> **Note:** The backend runs on Render's free tier and spins down after inactivity. The first load may take **30–60 seconds** to wake up. The login page shows a live "Connecting to server..." indicator while this happens.
+
+Backend API: [https://nexa-hr-backend-v2z6.onrender.com](https://nexa-hr-backend-v2z6.onrender.com)
+
+---
+
+## ✨ Features
 
 | # | Feature | Description |
 |---|---------|-------------|
-| 1 | **Live Agent Control Room** | Real-time execution timeline showing Router → RAG/Booking steps with status badges |
-| 2 | **Booking Copilot with Human Approval** | Slot card UI → user selects → confirms → DB write. Prevents double-booking. |
-| 3 | **Trustworthy RAG with Evidence** | Every answer cites `(Doc, Page X)`. Clickable snippet previews. Low-confidence abstention. |
-| 4 | **Context Switching** | FAQ mid-booking returns to booking state without losing name/email/slot |
-| 5 | **Prompt Injection Protection** | Pattern-based injection detection, email validation, PII masking in logs |
-| 6 | **Agent Evaluation Lab** | In-UI dashboard: run test suite, view pass/fail per category with metrics |
-| 7 | **Persistent Conversations** | SqliteSaver checkpointer — state survives backend restarts. Thread sidebar with rename/delete. |
-| 8 | **Document Management Panel** | Upload new PDFs, view chunk/page stats, test retrieval queries live |
+| 🤖 | **Agentic AI Chat** | LangGraph StateGraph with a router node that classifies intent and dispatches to a RAG node or booking node |
+| 📚 | **HR Knowledge Base** | Keyword search over plain-text HR documents (working hours, leave policy, benefits, interview process, general HR policies) |
+| 📅 | **Interview Booking System** | 6-state machine: `idle → collecting_info → slot_selection → pending_confirmation → confirmed / cancelled` with double-booking prevention |
+| 🔐 | **JWT Authentication** | Register/login with bcrypt password hashing, rate limiting (slowapi), auto-logout on token expiry |
+| 🔒 | **Strong Password Validation** | Live strength meter (5-segment bar), per-requirement checklist, score gate on registration |
+| 📊 | **HR Analytics Dashboard** | Booking stats, status breakdown (confirmed/cancelled/pending), hourly distribution, recent activity |
+| ✏️ | **Reschedule & Cancel** | Users can reschedule or cancel confirmed bookings from the dashboard |
+| 🎙️ | **Voice Input / TTS** | Web Speech API for voice messages (Chrome); text-to-speech reads assistant replies aloud |
+| ⚡ | **Real-time SSE Streaming** | Token-by-token responses streamed via Server-Sent Events; agent node change events surfaced live |
+| 🌙 | **Dark Theme UI** | CSS design tokens, dark/light/system theming, time-based greeting, animated typing indicator |
+| 🧵 | **Persistent Threads** | SqliteSaver checkpointer survives backend restarts; thread sidebar with rename/delete |
 
-## Tech Stack
+---
+
+## 🏗️ Architecture
+
+```
+React Frontend (Vite + Tailwind) ──── Vercel
+    │
+    ├── POST /api/chat   (SSE streaming)
+    ├── GET  /api/slots
+    ├── GET  /api/threads
+    └── GET  /api/health
+         │
+    FastAPI Backend (Python 3.11, async) ──── Render
+         │
+    LangGraph StateGraph
+    ┌────────────────────────────────────────┐
+    │           [ Router Node ]              │
+    │          /              \              │
+    │  [ RAG Node ]     [ Booking Node ]     │
+    │  (keyword search   (6-state machine,   │
+    │   on HR .txt docs)  SQLite bookings)   │
+    │          \              /              │
+    │        [ SqliteSaver Checkpointer ]    │
+    │        (keyed by thread_id)            │
+    └────────────────────────────────────────┘
+         │
+    SQLite  ── bookings, users, threads, slots
+    HR Docs ── backend/data/hr_docs/*.txt
+```
+
+**State flow:**
+
+1. User message arrives at `POST /api/chat`
+2. Router node classifies intent: `faq | booking | context_switch | unknown`
+3. `faq` / `context_switch` → RAG node → keyword retrieval → LLM response with citation
+4. `booking` → Booking node → 6-state machine, slot cards via SSE `booking_card` event
+5. State persists across requests via `SqliteSaver` keyed by `thread_id`
+6. Tokens and node-change events stream back as SSE to the frontend
+
+---
+
+## 🛠️ Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Agent Framework | LangGraph 1.2 (StateGraph, AsyncSqliteSaver checkpointer) |
-| Backend | Python 3.11 · FastAPI (async) · SSE streaming |
-| LLM | Groq API — qwen/qwen3-32b (free & fast; configurable) |
-| Vector Store | ChromaDB (local, persisted) |
-| Embeddings | sentence-transformers all-MiniLM-L6-v2 (free) |
-| Retrieval | Hybrid: BM25 (rank-bm25) + ChromaDB vector search |
+| Agent Framework | LangGraph ≥ 1.0 (StateGraph, AsyncSqliteSaver checkpointer) |
+| Backend | Python 3.11 · FastAPI · async · SSE streaming |
+| LLM | Groq API — `qwen/qwen3-32b` (fast, free tier) |
+| Knowledge Base | Plain `.txt` HR documents, keyword scoring (zero ML dependencies) |
 | Frontend | React 18 · Vite · Tailwind CSS |
-| Database | SQLite (bookings table + LangGraph AsyncSqliteSaver) |
+| Auth | python-jose (JWT) · bcrypt · slowapi rate limiting |
+| Database | SQLite (bookings + users + threads + slots + LangGraph checkpointer) |
+| Deployment | Render (backend) · Vercel (frontend) |
 
-## Local Setup
+---
+
+## 🚦 Quick Start (Local)
 
 ### Prerequisites
-- Python 3.10+
-- Node.js 18+
-- Groq API key (free at [console.groq.com](https://console.groq.com))
 
-### Backend
+- Python 3.11
+- Node.js 18+
+- Groq API key — free at [console.groq.com](https://console.groq.com)
+
+### 1. Clone
 
 ```bash
+git clone https://github.com/techWithKeerthana/agentic-hr-assistant.git
 cd agentic-hr-assistant
+```
 
-# Create and activate virtualenv
+### 2. Backend
+
+```bash
+cd backend
+
+# Create and activate virtual environment
 python -m venv venv
 # Windows:
 venv\Scripts\activate
 # macOS/Linux:
 source venv/bin/activate
 
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 
-# Create .env from template
-cp .env.example .env
-# Edit .env and add your GROQ_API_KEY
+# Configure environment
+cp ../.env.example .env
+# Edit .env — set GROQ_API_KEY and JWT_SECRET at minimum
 
-# Run backend (set BACKEND_PORT=8080 in .env if 8000 is blocked)
-cd backend
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# Start backend
+uvicorn main:app --reload --host 0.0.0.0 --port 8080
 ```
 
 The backend will:
 1. Initialize SQLite tables and seed 10 appointment slots
-2. Download and ingest both PDFs in the background (first start takes ~60s)
+2. Load HR knowledge base from `data/hr_docs/*.txt` on first chat request
 3. Stream SSE events on `POST /api/chat`
 
-### Frontend
+### 3. Frontend
 
 ```bash
 cd frontend
@@ -88,105 +137,134 @@ npm run dev
 # Opens at http://localhost:5173
 ```
 
-### Docker (optional)
+---
 
-```bash
-docker-compose up --build
-# Backend: http://localhost:8000
-# Frontend: http://localhost:5173
-```
-
-## API Reference
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/chat` | SSE streaming chat (message + thread_id) |
-| `GET` | `/api/slots` | Available appointment slots |
-| `GET` | `/api/threads` | List conversation threads |
-| `DELETE` | `/api/threads/{id}` | Delete a thread |
-| `PATCH` | `/api/threads/{id}` | Rename a thread |
-| `GET` | `/api/threads/{id}/messages` | Message history from checkpointer |
-| `GET` | `/api/threads/{id}/booking` | Active booking for a thread |
-| `GET` | `/api/docs` | List indexed documents |
-| `POST` | `/api/docs/upload` | Upload and index a new PDF |
-| `POST` | `/api/docs/preview` | Preview retrieval for a query |
-| `POST` | `/api/docs/query` | Alias for /api/docs/preview |
-| `POST` | `/api/eval/run` | Run the evaluation suite |
-| `GET` | `/api/health` | Health check |
-
-## Sample Dialogue — Context Interleaving
+## 📁 Project Structure
 
 ```
-User:  I want to book a performance review
-Bot:   I'd be happy to help! Could you provide your full name and email?
-
-User:  Alex Chen, alex@company.com
-Bot:   Thanks Alex! Here are available slots: [slot cards]
-
-User:  Wait — how many vacation days do I get?    ← FAQ mid-booking
-Bot:   Per the Employee Handbook (Page 14), employees receive 15 days PTO...
-       [Returning to your appointment booking...]
-
-User:  Let's go with Tuesday 11 AM (s3)
-Bot:   Summary: Alex Chen · alex@company.com · Tuesday 11 AM. Confirm?
-
-User:  Yes, confirm
-Bot:   ✓ Booking confirmed! Reference: #REV-4821
+/
+├── backend/
+│   ├── main.py                     # FastAPI app, all API endpoints
+│   ├── graph/
+│   │   ├── state.py                # AgentState TypedDict schema
+│   │   ├── graph.py                # LangGraph StateGraph definition
+│   │   ├── checkpointer.py         # AsyncSqliteSaver setup
+│   │   └── nodes/
+│   │       ├── router.py           # Intent classifier node
+│   │       ├── rag.py              # FAQ retrieval + LLM node
+│   │       ├── booking.py          # 6-state booking node
+│   │       └── summarizer.py       # Session summarizer node
+│   ├── rag/
+│   │   ├── ingestor.py             # Loads .txt HR docs, keyword retrieve()
+│   │   ├── retriever.py            # Thin wrapper around ingestor.retrieve()
+│   │   └── evaluator.py            # Citation extraction + confidence scoring
+│   ├── data/
+│   │   └── hr_docs/                # Plain-text HR knowledge base
+│   │       ├── working_hours.txt
+│   │       ├── leave_policy.txt
+│   │       ├── benefits.txt
+│   │       ├── interview_process.txt
+│   │       └── general_hr.txt
+│   ├── db/
+│   │   └── database.py             # SQLite: bookings, users, threads, slots
+│   ├── security/
+│   │   └── guardrails.py           # Injection detection, email validation, PII masking
+│   ├── tests/
+│   │   └── eval_runner.py          # Evaluation test suite
+│   ├── .python-version             # 3.11.0 — pins Python for Render
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx                 # Root: auth, routing, toast system, authFetch
+│   │   ├── config.js               # API_URL from VITE_API_URL env var
+│   │   ├── components/
+│   │   │   ├── ChatWindow.jsx      # Main chat UI, SSE consumer, booking cards
+│   │   │   ├── AgentTimeline.jsx   # Live node execution timeline
+│   │   │   ├── BookingCard.jsx     # Slot selection + confirmation card
+│   │   │   ├── CitationBadge.jsx   # Source citation badges
+│   │   │   ├── ThreadSidebar.jsx   # Conversation thread list
+│   │   │   ├── Dashboard.jsx       # Analytics dashboard
+│   │   │   ├── EvalDashboard.jsx   # Evaluation lab UI
+│   │   │   ├── DocPanel.jsx        # Document management panel
+│   │   │   └── AuthPage.jsx        # Login/register with password strength meter
+│   │   └── hooks/
+│   │       ├── useSSE.js           # SSE fetch hook with 60s timeout
+│   │       └── useThread.js        # Thread state management
+│   ├── .env.development            # VITE_API_URL=http://localhost:8080
+│   ├── .env.production             # VITE_API_URL=https://nexa-hr-backend-v2z6.onrender.com
+│   ├── vercel.json                 # SPA rewrite rules
+│   └── package.json
+├── .env.example
+└── README.md
 ```
 
-LangGraph preserves `name`, `email`, `booking_status="slot_selection"` across the FAQ detour.
+---
 
-## Evaluation Suite
+## 🔑 Environment Variables
 
-```bash
-# Run deterministic tests (no LLM required for most)
-python -m backend.tests.eval_runner
+### Backend (`backend/.env`)
 
-# Or via API (also runs in-UI via Eval Lab tab)
-curl -X POST http://localhost:8000/api/eval/run
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GROQ_API_KEY` | ✅ | Groq API key from console.groq.com |
+| `JWT_SECRET` | ✅ | Secret key for signing JWT tokens (use a long random string) |
+| `CORS_ORIGINS` | | Comma-separated allowed origins (default: `http://localhost:5173`) |
+| `SQLITE_DB_PATH` | | Path to SQLite database (default: `./data/agent_state.db`) |
+| `HR_DOCS_DIR` | | Path to HR docs directory (default: `./data/hr_docs`) |
+| `BACKEND_PORT` | | Port for uvicorn (default: `8000`) |
+
+### Frontend (`frontend/.env.development` / `.env.production`)
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_API_URL` | Backend URL — `http://localhost:8080` for dev, Render URL for production |
+
+---
+
+## 🔄 Booking Flow
+
+```
+User: "I want to book an appointment"
+Bot:  "Please provide your full name and email."
+
+User: "Jane Smith, jane@company.com"
+Bot:  "Thanks Jane! Select a time slot:" [slot cards]
+
+User: "What's the leave policy?"  ← FAQ interruption mid-booking
+Bot:  "Per the HR handbook, employees receive 15 days PTO..."
+      "Returning to your appointment booking..."
+
+User: "Tuesday 11 AM" (slot s3)
+Bot:  "Booking summary: Jane Smith · jane@company.com · Tuesday 11 AM. Confirm?"
+
+User: "Yes, confirm"
+Bot:  "✅ Confirmed! Booking reference: REV-A3F2B1C4"
 ```
 
-Test categories: Security · Input Validation · Database · Intent Routing
+LangGraph preserves `name`, `email`, and `booking_status` in the SqliteSaver checkpointer across the FAQ detour and across HTTP requests.
 
-## AI Engineering Log
+---
+
+## 🤖 AI Engineering Log
 
 ### Tools Used
-- **Claude (Anthropic)** — architecture design, LangGraph graph wiring, SSE streaming logic
-- **GitHub Copilot** — inline completions for boilerplate
-- **Cursor** — refactoring node handlers
+- **Claude (Anthropic)** — architecture design, LangGraph graph wiring, SSE streaming logic, auth system, UI components
+- **Groq (qwen/qwen3-32b)** — production LLM for intent routing, RAG generation, and name/email extraction
 
 ### Where LLMs Hallucinated and How I Fixed It
 
-1. **LangGraph streaming API**: Claude initially suggested `graph.stream()` for SSE output, but this is synchronous and blocks the async event loop. Fixed by using `graph.astream_events(version="v2")` with `async for`, translating `on_chain_end` events (with `metadata["langgraph_node"]`) into SSE tokens.
+1. **Qwen model JSON output** — The Qwen model wraps every response in `<think>...</think>` tags and markdown code fences. `json.loads` threw on every call, causing the booking node to fail name extraction and loop forever re-asking for name/email. Fixed by stripping `<think>` blocks and ` ``` ` fences before JSON parsing, with a regex fallback for name (title-case word pairs) and email.
 
-2. **AsyncSqliteSaver initialization**: LLM generated `AsyncSqliteSaver.from_conn_string(path)` which doesn't exist in LangGraph 1.2. Correct API is `await aiosqlite.connect(path)` then `AsyncSqliteSaver(conn)`.
+2. **AsyncSqliteSaver initialization** — LLM suggested `AsyncSqliteSaver.from_conn_string(path)` which doesn't exist in LangGraph 1.x. Correct API is `await aiosqlite.connect(path)` then `AsyncSqliteSaver(conn)`.
 
-3. **ChromaDB confidence scores**: Claude assumed relevance scores are 0–1, but ChromaDB L2 distance conversion yields 0–0.6 for typical documents. Set `RAG_CONFIDENCE_THRESHOLD=0.3` instead of default 0.7 to avoid over-abstention.
+3. **LangGraph streaming** — Claude initially suggested `graph.stream()` which is synchronous and blocks the async event loop. Fixed by using `graph.astream_events(version="v2")` with `async for`.
 
-4. **Duplicate token emission**: `on_chain_end` fires 2–3 times per node in LangGraph 1.x. Fixed by tracking `emitted_end_nodes: set` and skipping duplicate end events per node.
+4. **ChromaDB OOM on Render free tier** — Initial architecture used ChromaDB + sentence-transformers (~400 MB RAM). Render free tier has 512 MB limit. Replaced with zero-dependency keyword search on plain `.txt` files (~5 MB RAM).
 
-5. **Booking state reset**: First router iteration reset `booking_status` to `None` on context switch. Fixed by using `**state` spread so router only overrides `intent` / `current_node` / `streaming_events`, preserving all booking fields.
+5. **Booking state reset on context switch** — Router node was overwriting all state fields. Fixed by spreading `{**state, ...}` in the router return so only `intent`, `current_node`, and `streaming_events` change.
 
-6. **Groq model availability**: LLaMA 3.3-70b-versatile was not available on this Groq account. Fell back to `qwen/qwen3-32b` which is available and performant.
+---
 
-7. **BM25 + vector ensemble**: Initial suggestion passed `VectorStoreRetriever` without score normalization. Added manual BM25/vector score merge with deduplication by document ID to avoid double-counting chunks.
+## 📄 License
 
-## Verification Artifacts
-
-Screenshots (see `screenshots/` directory):
-- `screenshots/chat-rag.png` — RAG answer with citation badge and evidence snippets
-- `screenshots/booking-flow.png` — slot selection cards → pending confirmation → confirmed
-- `screenshots/context-switch.png` — FAQ mid-booking, state preserved across turns
-- `screenshots/agent-timeline.png` — live Agent Control Room showing Router → RAG steps
-- `screenshots/eval-dashboard.png` — Eval Lab UI showing 11/11 tests passing
-- `screenshots/thread-sidebar.png` — persistent conversation threads with rename
-
-### Verified Behaviors
-
-| Behavior | Evidence |
-|----------|----------|
-| SqliteSaver restart persistence | Killed uvicorn, restarted, `GET /api/threads/persist-test-01/messages` returned 9 messages |
-| Eval suite 100% | `python tests/eval_runner.py` → `Pass rate: 100.0% (11/11 tests)` |
-| Context switching | Mid-booking FAQ returns answer then "Returning to your appointment booking..." |
-| Citation abstention | Low-confidence queries return "Handbook doesn't contain enough information" |
-| Double-booking prevention | `is_slot_available()` checked before `create_booking()` write |
+MIT — built as a 72-hour internship technical assessment.
