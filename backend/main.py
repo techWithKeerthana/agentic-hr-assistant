@@ -550,10 +550,9 @@ async def get_analytics_summary():
 
 @app.get("/api/health")
 async def health():
-    from rag.ingestor import get_vectorstore
-    vs = get_vectorstore()
+    from rag.ingestor import get_index
     return {
         "status": "ok",
-        "vectorstore_ready": vs is not None,
+        "rag_ready": get_index() is not None,
     }
 

@@ -6,7 +6,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from graph.state import AgentState
 from rag.retriever import retrieve
 from rag.evaluator import extract_citations, compute_citation_confidence
-from rag import ingestor
 
 logger = logging.getLogger(__name__)
 
@@ -76,22 +75,8 @@ def rag_node(state: AgentState) -> AgentState:
     messages = state.get("messages", [])
     last_message = messages[-1].get("content", "") if messages else ""
 
-    vs = ingestor.get_vectorstore()
     events = [{"type": "node_change", "node": "rag", "description": "Searching handbook..."}]
-
-    if vs is None:
-        answer = "The knowledge base is still loading. Please try again in a moment."
-        return {
-            **state,
-            "current_node": "rag",
-            "retrieved_chunks": [],
-            "rag_confidence": 0.0,
-            "citations": [],
-            "streaming_events": events,
-            "messages": [{"role": "assistant", "content": answer}],
-        }
-
-    result = retrieve(last_message, vs)
+    result = retrieve(last_message)
     chunks = result["chunks"]
     confidence = result["confidence"]
     abstain = result["abstain"]
