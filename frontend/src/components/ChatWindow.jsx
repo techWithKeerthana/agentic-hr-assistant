@@ -6,6 +6,22 @@ import FollowUpChips from './FollowUpChips'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
+function getGreeting(name) {
+  const hour = new Date().getHours()
+  const first = name?.split(' ')[0] || 'there'
+  if (hour >= 5  && hour < 12) return `Good morning, ${first}! ☀️`
+  if (hour >= 12 && hour < 17) return `Good afternoon, ${first}! 👋`
+  if (hour >= 17 && hour < 21) return `Good evening, ${first}! 🌆`
+  return `Good night, ${first}! 🌙`
+}
+
+const SUGGESTION_CHIPS = [
+  '📋 What are the working hours?',
+  '🏖️ How many vacation days do I get?',
+  '🏠 What is the remote work policy?',
+  '📅 Book an HR appointment',
+]
+
 function TypingIndicator() {
   const dot = { width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--text-secondary)', display: 'inline-block' }
   return (
@@ -30,12 +46,12 @@ function MessageBubble({ message, onSlotSelect, onCancel, onConfirm }) {
       {!isUser && (
         <div style={{
           width: '32px', height: '32px', flexShrink: 0,
-          background: 'linear-gradient(135deg, #1c1c2e, #2a2a3e)',
-          border: '1px solid var(--border)',
+          background: 'linear-gradient(135deg, #5b4cf5, #a855f7)',
           borderRadius: '10px',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '16px',
-        }}>🤖</div>
+          fontWeight: 800, fontSize: '15px', color: '#fff', letterSpacing: '-1px',
+          boxShadow: '0 0 10px rgba(91,76,245,0.35)',
+        }}>N</div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: isUser ? '75%' : '85%', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
@@ -226,157 +242,189 @@ export default function ChatWindow({ threadId, onThreadUpdated, ssState, userNam
     await sendMessage('cancel', threadId)
   }
 
+  const hasMessages = messages.length > 0 || isStreaming || loadingHistory
+
+  const botAvatar = (
+    <div style={{
+      width: '32px', height: '32px', flexShrink: 0,
+      background: 'linear-gradient(135deg, #5b4cf5, #a855f7)',
+      borderRadius: '10px',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontWeight: 800, fontSize: '15px', color: '#fff', letterSpacing: '-1px',
+      boxShadow: '0 0 10px rgba(91,76,245,0.35)',
+    }}>N</div>
+  )
+
+  const inputBar = (centered = false) => (
+    <div
+      style={{
+        display: 'flex', gap: '10px', alignItems: 'flex-end',
+        background: 'var(--bg-card)', border: '1px solid var(--border)',
+        borderRadius: centered ? '20px' : '16px',
+        padding: centered ? '14px 16px' : '10px 12px',
+        boxShadow: centered ? '0 4px 24px rgba(0,0,0,0.2)' : 'var(--shadow-sm)',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+      }}
+      onFocusCapture={e => {
+        e.currentTarget.style.borderColor = 'var(--accent)'
+        e.currentTarget.style.boxShadow = centered ? '0 0 0 3px var(--accent-soft), 0 4px 24px rgba(0,0,0,0.2)' : '0 0 0 3px var(--accent-soft)'
+      }}
+      onBlurCapture={e => {
+        e.currentTarget.style.borderColor = 'var(--border)'
+        e.currentTarget.style.boxShadow = centered ? '0 4px 24px rgba(0,0,0,0.2)' : 'var(--shadow-sm)'
+      }}
+    >
+      <textarea
+        ref={inputRef}
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        disabled={isStreaming}
+        placeholder="Ask about NexaHR policies or book an appointment..."
+        rows={1}
+        style={{
+          flex: 1, border: 'none', background: 'transparent',
+          color: 'var(--text-primary)', fontSize: '14px',
+          resize: 'none', outline: 'none', lineHeight: '1.5',
+          maxHeight: '120px', overflowY: 'auto', fontFamily: 'inherit',
+          opacity: isStreaming ? 0.5 : 1,
+        }}
+      />
+      <button
+        onClick={() => handleSend()}
+        disabled={!input.trim() || isStreaming}
+        style={{
+          width: '36px', height: '36px', borderRadius: '10px', border: 'none',
+          background: (!input.trim() || isStreaming) ? 'var(--bg-hover)' : 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
+          color: (!input.trim() || isStreaming) ? 'var(--text-muted)' : '#fff',
+          fontSize: '18px', cursor: (!input.trim() || isStreaming) ? 'not-allowed' : 'pointer',
+          flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: (!input.trim() || isStreaming) ? 'none' : '0 2px 8px rgba(91,76,245,0.3)',
+          transition: 'transform 0.1s, box-shadow 0.1s', fontFamily: 'inherit',
+        }}
+        onMouseOver={e => { if (input.trim() && !isStreaming) e.currentTarget.style.transform = 'scale(1.05)' }}
+        onMouseOut={e => { e.currentTarget.style.transform = 'scale(1)' }}
+      >↑</button>
+    </div>
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--bg-primary)' }}>
 
-      {/* Messages area */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 0' }}>
-        <div style={{ maxWidth: '720px', margin: '0 auto', padding: '0 20px' }}>
+      {!hasMessages ? (
+        /* ── Centered empty state ── */
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', overflowY: 'auto' }}>
+          <div style={{
+            width: '72px', height: '72px',
+            background: 'linear-gradient(135deg, #5b4cf5, #a855f7)',
+            borderRadius: '24px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 800, fontSize: '34px', color: '#fff', letterSpacing: '-2px',
+            marginBottom: '24px',
+            boxShadow: '0 8px 32px rgba(91,76,245,0.35)',
+          }}>N</div>
 
-          {messages.length === 0 && !isStreaming && !loadingHistory && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '16px', textAlign: 'center' }}>
-              <div style={{
-                width: '64px', height: '64px',
-                background: 'linear-gradient(135deg, rgba(91,76,245,0.2), rgba(139,92,246,0.1))',
-                border: '1px solid rgba(91,76,245,0.3)',
-                borderRadius: '20px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '32px',
-              }}>🤖</div>
-              <div>
-                <p style={{ fontWeight: 600, fontSize: '16px', marginBottom: '6px', color: 'var(--text-primary)' }}>
-                  {userName ? `Hello ${userName}! 👋` : 'Welcome to HR Assistant'}
-                </p>
-                <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Ask about HR policies or book an appointment</p>
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>Try: "How often are performance reviews conducted?" or "Book a meeting"</p>
-              </div>
-            </div>
-          )}
+          <h2 style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px', textAlign: 'center', letterSpacing: '-0.5px' }}>
+            {getGreeting(userName)}
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '15px', margin: '0 0 32px', textAlign: 'center' }}>
+            Your AI-powered HR assistant — ask anything or book an appointment
+          </p>
 
-          {loadingHistory && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', gap: '8px', color: 'var(--text-secondary)', fontSize: '13px' }}>
-              <span className="w-2 h-2 rounded-full typing-dot" style={{ backgroundColor: 'var(--text-secondary)', width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }} />
-              Loading conversation...
-            </div>
-          )}
+          {/* Suggestion chips */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', marginBottom: '32px', maxWidth: '560px' }}>
+            {SUGGESTION_CHIPS.map(chip => (
+              <button
+                key={chip}
+                onClick={() => handleSend(chip.replace(/^\S+\s/, ''))}
+                style={{
+                  padding: '10px 16px', borderRadius: '99px',
+                  border: '1px solid var(--border)', background: 'var(--bg-card)',
+                  color: 'var(--text-secondary)', fontSize: '13px', cursor: 'pointer',
+                  transition: 'all 0.2s', fontWeight: 500, fontFamily: 'inherit',
+                }}
+                onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-soft)' }}
+                onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.background = 'var(--bg-card)' }}
+              >{chip}</button>
+            ))}
+          </div>
 
-          {messages.map((msg, i) => (
-            <MessageBubble
-              key={i}
-              message={msg}
-              onSlotSelect={handleSlotSelect}
-              onCancel={handleCancelBooking}
-              onConfirm={handleConfirmBooking}
-            />
-          ))}
-
-          {!isStreaming && shownFollowUps.length > 0 && (
-            <FollowUpChips questions={shownFollowUps} onSend={handleSend} />
-          )}
-
-          {currentNodeEvents.length > 0 && (
-            <AgentTimeline nodeEvents={currentNodeEvents} isStreaming={isStreaming} />
-          )}
-
-          {/* Streaming bubble */}
-          {isStreaming && streamingContent && (
-            <div className="message-enter" style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'flex-start' }}>
-              <div style={{
-                width: '32px', height: '32px', flexShrink: 0,
-                background: 'linear-gradient(135deg, #1c1c2e, #2a2a3e)',
-                border: '1px solid var(--border)', borderRadius: '10px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px',
-              }}>🤖</div>
-              <div style={{
-                maxWidth: '85%', padding: '14px 18px',
-                borderRadius: '4px 18px 18px 18px',
-                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                color: 'var(--text-primary)', fontSize: '14px', lineHeight: '1.7',
-                whiteSpace: 'pre-wrap', boxShadow: 'var(--shadow-sm)',
-              }}>
-                {streamingContent}
-                <span style={{ display: 'inline-block', width: '6px', height: '16px', background: 'var(--accent)', marginLeft: '3px', borderRadius: '2px', animation: 'pulse 1s infinite' }} />
-              </div>
-            </div>
-          )}
-
-          {isStreaming && !streamingContent && (
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'flex-start' }}>
-              <div style={{
-                width: '32px', height: '32px', flexShrink: 0,
-                background: 'linear-gradient(135deg, #1c1c2e, #2a2a3e)',
-                border: '1px solid var(--border)', borderRadius: '10px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px',
-              }}>🤖</div>
-              <TypingIndicator />
-            </div>
-          )}
-
-          {error && (
-            <div style={{ textAlign: 'center', fontSize: '13px', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '10px 16px', marginBottom: '16px', backgroundColor: 'rgba(239,68,68,0.08)' }}>
-              {error}
-            </div>
-          )}
-
-          <div ref={bottomRef} />
+          {/* Centered input */}
+          <div style={{ width: '100%', maxWidth: '600px' }}>
+            {inputBar(true)}
+          </div>
         </div>
-      </div>
+      ) : (
+        /* ── Normal chat layout ── */
+        <>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '24px 0' }}>
+            <div style={{ maxWidth: '720px', margin: '0 auto', padding: '0 20px' }}>
 
-      {/* Input bar */}
-      <div style={{ borderTop: '1px solid var(--border)', padding: '16px 20px', background: 'var(--bg-secondary)' }}>
-        <div
-          style={{
-            maxWidth: '720px', margin: '0 auto',
-            display: 'flex', gap: '10px', alignItems: 'flex-end',
-            background: 'var(--bg-card)', border: '1px solid var(--border)',
-            borderRadius: '16px', padding: '10px 12px',
-            boxShadow: 'var(--shadow-sm)', transition: 'border-color 0.2s, box-shadow 0.2s',
-          }}
-          onFocusCapture={e => {
-            e.currentTarget.style.borderColor = 'var(--accent)'
-            e.currentTarget.style.boxShadow = '0 0 0 3px var(--accent-soft)'
-          }}
-          onBlurCapture={e => {
-            e.currentTarget.style.borderColor = 'var(--border)'
-            e.currentTarget.style.boxShadow = 'var(--shadow-sm)'
-          }}
-        >
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isStreaming}
-            placeholder="Ask about HR policies or book an appointment..."
-            rows={1}
-            style={{
-              flex: 1, border: 'none', background: 'transparent',
-              color: 'var(--text-primary)', fontSize: '14px',
-              resize: 'none', outline: 'none', lineHeight: '1.5',
-              maxHeight: '120px', overflowY: 'auto', fontFamily: 'inherit',
-              opacity: isStreaming ? 0.5 : 1,
-            }}
-          />
-          <button
-            onClick={() => handleSend()}
-            disabled={!input.trim() || isStreaming}
-            style={{
-              width: '36px', height: '36px', borderRadius: '10px', border: 'none',
-              background: (!input.trim() || isStreaming)
-                ? 'var(--bg-hover)'
-                : 'linear-gradient(135deg, #5b4cf5, #7c5cf6)',
-              color: (!input.trim() || isStreaming) ? 'var(--text-muted)' : '#fff',
-              fontSize: '18px', cursor: (!input.trim() || isStreaming) ? 'not-allowed' : 'pointer',
-              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: (!input.trim() || isStreaming) ? 'none' : '0 2px 8px rgba(91,76,245,0.3)',
-              transition: 'transform 0.1s, box-shadow 0.1s',
-              fontFamily: 'inherit',
-            }}
-            onMouseOver={e => { if (!(!input.trim() || isStreaming)) e.currentTarget.style.transform = 'scale(1.05)' }}
-            onMouseOut={e => { e.currentTarget.style.transform = 'scale(1)' }}
-          >↑</button>
-        </div>
-      </div>
+              {loadingHistory && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', gap: '8px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                  <span className="typing-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--text-secondary)', display: 'inline-block' }} />
+                  Loading conversation...
+                </div>
+              )}
+
+              {messages.map((msg, i) => (
+                <MessageBubble
+                  key={i}
+                  message={msg}
+                  onSlotSelect={handleSlotSelect}
+                  onCancel={handleCancelBooking}
+                  onConfirm={handleConfirmBooking}
+                />
+              ))}
+
+              {!isStreaming && shownFollowUps.length > 0 && (
+                <FollowUpChips questions={shownFollowUps} onSend={handleSend} />
+              )}
+
+              {currentNodeEvents.length > 0 && (
+                <AgentTimeline nodeEvents={currentNodeEvents} isStreaming={isStreaming} />
+              )}
+
+              {isStreaming && streamingContent && (
+                <div className="message-enter" style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'flex-start' }}>
+                  {botAvatar}
+                  <div style={{
+                    maxWidth: '85%', padding: '14px 18px',
+                    borderRadius: '4px 18px 18px 18px',
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    color: 'var(--text-primary)', fontSize: '14px', lineHeight: '1.7',
+                    whiteSpace: 'pre-wrap', boxShadow: 'var(--shadow-sm)',
+                  }}>
+                    {streamingContent}
+                    <span style={{ display: 'inline-block', width: '6px', height: '16px', background: 'var(--accent)', marginLeft: '3px', borderRadius: '2px', animation: 'pulse 1s infinite' }} />
+                  </div>
+                </div>
+              )}
+
+              {isStreaming && !streamingContent && (
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'flex-start' }}>
+                  {botAvatar}
+                  <TypingIndicator />
+                </div>
+              )}
+
+              {error && (
+                <div style={{ textAlign: 'center', fontSize: '13px', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '10px 16px', marginBottom: '16px', backgroundColor: 'rgba(239,68,68,0.08)' }}>
+                  {error}
+                </div>
+              )}
+
+              <div ref={bottomRef} />
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border)', padding: '16px 20px', background: 'var(--bg-secondary)' }}>
+            <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+              {inputBar(false)}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

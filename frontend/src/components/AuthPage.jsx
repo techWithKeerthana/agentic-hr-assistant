@@ -104,17 +104,21 @@ export default function AuthPage({ onLogin }) {
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{
             width: '56px', height: '56px',
-            background: 'linear-gradient(135deg, #5b4cf5, #8b5cf6)',
+            background: 'linear-gradient(135deg, #5b4cf5, #a855f7)',
             borderRadius: '18px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '28px', margin: '0 auto 16px',
-            boxShadow: '0 0 24px rgba(91,76,245,0.4)',
-          }}>🤖</div>
+            fontWeight: 800, fontSize: '26px', color: '#fff', letterSpacing: '-2px',
+            margin: '0 auto 16px',
+            boxShadow: '0 0 24px rgba(91,76,245,0.45)',
+          }}>N</div>
           <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>
-            HR Assistant
+            NexaHR
           </h1>
-          <p style={{ margin: '6px 0 0', color: 'var(--text-secondary)', fontSize: '14px' }}>
+          <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '14px' }}>
             {mode === 'login' ? 'Welcome back!' : 'Create your account'}
+          </p>
+          <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '12px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+            Intelligent HR · Powered by AI
           </p>
         </div>
 
