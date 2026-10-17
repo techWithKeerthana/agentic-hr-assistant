@@ -3,6 +3,7 @@ import json
 import uuid
 import asyncio
 import logging
+from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -18,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from db.database import (
-    init_db, get_available_slots, list_threads, delete_thread,
+    init_db, get_available_slots, get_connection, list_threads, delete_thread,
     upsert_thread, get_booking_by_thread
 )
 from graph.graph import get_graph, build_graph, set_graph
@@ -311,6 +312,61 @@ async def run_eval():
     from tests.eval_runner import run_all_tests
     results = await run_all_tests()
     return results
+
+
+@app.get("/api/analytics/summary")
+async def get_analytics_summary():
+    """Live booking stats for the HR Analytics Dashboard."""
+    conn = get_connection()
+    now_iso = datetime.now().isoformat()
+
+    total = conn.execute("SELECT COUNT(*) as count FROM bookings").fetchone()["count"]
+
+    by_status = conn.execute(
+        "SELECT status, COUNT(*) as count FROM bookings GROUP BY status"
+    ).fetchall()
+
+    # Extract 24-hour from slot_label like "Monday, Oct 19 - 09:00 AM"
+    # INSTR(slot_label, '- ') finds the dash; +2 = start of time; +8 = AM/PM
+    by_hour = conn.execute("""
+        SELECT
+            CASE
+                WHEN SUBSTR(slot_label, INSTR(slot_label, '- ') + 8, 2) = 'PM'
+                     AND CAST(SUBSTR(slot_label, INSTR(slot_label, '- ') + 2, 2) AS INTEGER) != 12
+                THEN CAST(SUBSTR(slot_label, INSTR(slot_label, '- ') + 2, 2) AS INTEGER) + 12
+                WHEN SUBSTR(slot_label, INSTR(slot_label, '- ') + 8, 2) = 'AM'
+                     AND CAST(SUBSTR(slot_label, INSTR(slot_label, '- ') + 2, 2) AS INTEGER) = 12
+                THEN 0
+                ELSE CAST(SUBSTR(slot_label, INSTR(slot_label, '- ') + 2, 2) AS INTEGER)
+            END as hour,
+            COUNT(*) as count
+        FROM bookings
+        WHERE slot_label IS NOT NULL AND slot_label LIKE '%- %'
+        GROUP BY hour
+        ORDER BY hour
+    """).fetchall()
+
+    recent = conn.execute("""
+        SELECT name, email, slot_label, status, created_at
+        FROM bookings
+        ORDER BY created_at DESC
+        LIMIT 5
+    """).fetchall()
+
+    available_slots = conn.execute(
+        "SELECT COUNT(*) as count FROM slots WHERE available = 1 AND datetime_iso > ?",
+        (now_iso,)
+    ).fetchone()["count"]
+
+    conn.close()
+
+    return {
+        "total_bookings": total,
+        "available_slots": available_slots,
+        "by_status": [dict(r) for r in by_status],
+        "by_hour": [dict(r) for r in by_hour],
+        "recent_bookings": [dict(r) for r in recent],
+    }
 
 
 @app.get("/api/health")

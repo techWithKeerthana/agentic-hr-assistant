@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { MessageSquare, BarChart3, FileText } from 'lucide-react'
+import { MessageSquare, BarChart3, FileText, PieChart } from 'lucide-react'
 import ThreadSidebar from './components/ThreadSidebar'
 import ChatWindow from './components/ChatWindow'
 import EvalDashboard from './components/EvalDashboard'
 import DocPanel from './components/DocPanel'
+import Dashboard from './components/Dashboard'
 import ThemeToggle from './components/ThemeToggle'
 import { useSSE } from './hooks/useSSE'
 import { useThread } from './hooks/useThread'
 
 const TABS = [
   { id: 'chat', label: 'Chat', icon: MessageSquare },
+  { id: 'dashboard', label: 'Dashboard', icon: PieChart },
   { id: 'eval', label: 'Eval Lab', icon: BarChart3 },
   { id: 'docs', label: 'Documents', icon: FileText },
 ]
@@ -91,6 +93,7 @@ export default function App() {
               onThreadUpdated={refreshThreads}
             />
           )}
+          {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'eval' && <EvalDashboard />}
           {activeTab === 'docs' && <DocPanel />}
         </div>
