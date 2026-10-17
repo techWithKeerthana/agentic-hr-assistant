@@ -41,22 +41,40 @@ def _get_slot_label(slot_id: str) -> str:
 
 def _extract_name_email(text: str, llm) -> tuple[str | None, str | None]:
     """Use LLM to extract name and email from freeform text."""
-    prompt = f"""Extract the person's name and email from this message. Return ONLY JSON like:
-{{"name": "John Smith", "email": "john@example.com"}}
-If not found, use null for that field.
-
-Message: {text}"""
+    import json
+    prompt = (
+        "Extract the person's name and email from this message. "
+        "Return ONLY valid JSON with no markdown, no explanation:\n"
+        '{"name": "John Smith", "email": "john@example.com"}\n'
+        "Use null if not found.\n\n"
+        f"Message: {text}"
+    )
     try:
         resp = llm.invoke([HumanMessage(content=prompt)])
-        import json
-        data = json.loads(resp.content.strip())
-        return data.get("name"), data.get("email")
-    except Exception:
-        # Fallback: regex
-        email_match = re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", text)
-        email = email_match.group(0) if email_match else None
-        name = None
-        return name, email
+        content = resp.content.strip()
+        # Strip <think>…</think> blocks (Qwen model)
+        content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+        # Strip markdown code fences
+        if "```" in content:
+            parts = content.split("```")
+            content = parts[1].lstrip("json").strip() if len(parts) > 1 else content
+        start, end = content.find("{"), content.rfind("}")
+        if start >= 0 and end > start:
+            data = json.loads(content[start:end + 1])
+            return data.get("name"), data.get("email")
+    except Exception as e:
+        logger.debug(f"LLM name/email extraction failed: {e}")
+
+    # Regex fallback — email
+    email_match = re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", text)
+    email = email_match.group(0) if email_match else None
+
+    # Regex fallback — name: 2+ title-case words not containing @
+    text_clean = re.sub(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", "", text)
+    name_match = re.search(r"\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)\b", text_clean)
+    name = name_match.group(1) if name_match else None
+
+    return name, email
 
 
 def booking_node(state: AgentState) -> AgentState:
@@ -96,11 +114,14 @@ def booking_node(state: AgentState) -> AgentState:
 
     # --- COLLECTING INFO ---
     if booking_status == "collecting_info":
+        # Use whatever is already in state as starting point
         name = state.get("name")
         email = state.get("email")
 
+        # Only attempt extraction if we're still missing something
         if not name or not email:
             extracted_name, extracted_email = _extract_name_email(last_message, llm)
+            # Never overwrite a previously saved value with None
             if extracted_name:
                 name = extracted_name
             if extracted_email:
